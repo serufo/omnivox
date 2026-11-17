@@ -1,9 +1,9 @@
-const CACHE_NAME = 'omnivox-pwa-v4';
+const CACHE_NAME = 'omnivox-pwa-v0.5';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
+  './styles.css?v=0.5',
+  './app.js?v=0.5',
   './manifest.json',
   './icon.svg'
 ];
@@ -27,6 +27,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request, { cache: 'no-store' })
+      .then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

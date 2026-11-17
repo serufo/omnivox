@@ -192,6 +192,19 @@ button, input, select {
   100% { width: 100%; }
 }
 
+.splash-version-badge {
+  margin-top: 1.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.32rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--accent-emerald);
+}
+
 /* ============================================================================
    2. SETUP SCREEN (AVATAR CAMERA/UPLOAD + NAME + ROOM NAME + LANGUAGE)
    ============================================================================ */

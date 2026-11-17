@@ -13,11 +13,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=0.5" />
 </head>
 <body>
   <!-- ======================================================================
-       1. SPLASH SCREEN (4 SECONDS ANIMATED LOGO)
+       1. SPLASH SCREEN (4 SECONDS ANIMATED LOGO + VERSION BADGE)
        ====================================================================== -->
   <section id="splash-screen" class="splash-screen" aria-label="Tela de abertura Omnivox">
     <div class="splash-logo-stage" aria-hidden="true">
@@ -41,6 +41,8 @@
     <div class="splash-progress-track" aria-hidden="true">
       <div class="splash-progress-fill"></div>
     </div>
+
+    <div id="splash-version-badge" class="splash-version-badge">v0.5</div>
   </section>
 
   <!-- ======================================================================
@@ -54,7 +56,7 @@
       <header class="setup-header">
         <div class="setup-brand-pill">
           <span class="live-dot"></span>
-          <span>OMNIVOX • 50 IDIOMAS DISPONÍVEIS</span>
+          <span>OMNIVOX v0.5 • 50 IDIOMAS DISPONÍVEIS</span>
         </div>
         <h1 id="setup-main-title">Criar Nova Sala</h1>
         <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
@@ -332,6 +334,6 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=0.5"></script>
 </body>
 </html>

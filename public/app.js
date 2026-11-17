@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const APP_VERSION = 'v0.5';
+
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
   // ==========================================================================
@@ -73,7 +75,7 @@
   }
 
   // ==========================================================================
-  // 2. REAL ISO/IEC 18004 QR CODE SVG GENERATOR
+  // 2. REAL ISO/IEC 18004 QR CODE SVG GENERATOR (VERSIONS 1..6)
   // ==========================================================================
   const QrCodeGen = (() => {
     const EXP = new Uint8Array(512);
@@ -278,7 +280,261 @@
   })();
 
   // ==========================================================================
-  // 3. UNIVERSAL 50-LANGUAGE TRANSLATION ENGINE (INSTANT CORPUS + NEURAL CLOUD API)
+  // 3. CROSS-DEVICE REALTIME CLOUD RELAY (NTFY WSS/HTTPS + MQTT OVER WSS + BC)
+  //    Enables separate physical smartphones scanning the QR Code to see each
+  //    other in real time on static GitHub Pages without a custom backend!
+  // ==========================================================================
+  const CloudRelay = (() => {
+    const seenEventIds = new Set();
+    let activeTopic = null;
+    let onEventCallback = null;
+    let ntfyWs = null;
+    let mqttSockets = [];
+    let pollTimer = null;
+    const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('omnivox_live_room_v5') : null;
+
+    function encodeMqttString(str) {
+      const utf8 = new TextEncoder().encode(str);
+      const out = new Uint8Array(2 + utf8.length);
+      out[0] = (utf8.length >>> 8) & 0xff;
+      out[1] = utf8.length & 0xff;
+      out.set(utf8, 2);
+      return out;
+    }
+
+    function encodeMqttRemainingLength(len) {
+      const bytes = [];
+      do {
+        let digit = len % 128;
+        len = Math.floor(len / 128);
+        if (len > 0) digit |= 128;
+        bytes.push(digit);
+      } while (len > 0);
+      return new Uint8Array(bytes);
+    }
+
+    function buildMqttConnectPacket(clientId) {
+      const protoName = encodeMqttString('MQTT');
+      const clientBytes = encodeMqttString(clientId);
+      const varHeader = new Uint8Array([
+        ...protoName,
+        0x04, // Protocol level 4 (MQTT 3.1.1)
+        0x02, // Clean session
+        0x00, 0x3c // Keep-alive 60s
+      ]);
+      const remLen = encodeMqttRemainingLength(varHeader.length + clientBytes.length);
+      const pkt = new Uint8Array(1 + remLen.length + varHeader.length + clientBytes.length);
+      pkt[0] = 0x10; // CONNECT
+      pkt.set(remLen, 1);
+      pkt.set(varHeader, 1 + remLen.length);
+      pkt.set(clientBytes, 1 + remLen.length + varHeader.length);
+      return pkt;
+    }
+
+    function buildMqttSubscribePacket(topic) {
+      const topicBytes = encodeMqttString(topic);
+      const bodyLen = 2 + topicBytes.length + 1;
+      const remLen = encodeMqttRemainingLength(bodyLen);
+      const pkt = new Uint8Array(1 + remLen.length + bodyLen);
+      pkt[0] = 0x82; // SUBSCRIBE
+      pkt.set(remLen, 1);
+      let off = 1 + remLen.length;
+      pkt[off++] = 0x00;
+      pkt[off++] = 0x01; // Packet ID 1
+      pkt.set(topicBytes, off);
+      pkt[off + topicBytes.length] = 0x00; // QoS 0
+      return pkt;
+    }
+
+    function buildMqttPublishPacket(topic, jsonStr, retain = false) {
+      const topicBytes = encodeMqttString(topic);
+      const payloadBytes = new TextEncoder().encode(jsonStr);
+      const bodyLen = topicBytes.length + payloadBytes.length;
+      const remLen = encodeMqttRemainingLength(bodyLen);
+      const pkt = new Uint8Array(1 + remLen.length + bodyLen);
+      pkt[0] = retain ? 0x31 : 0x30; // PUBLISH QoS 0
+      pkt.set(remLen, 1);
+      pkt.set(topicBytes, 1 + remLen.length);
+      pkt.set(payloadBytes, 1 + remLen.length + topicBytes.length);
+      return pkt;
+    }
+
+    function parseIncomingMqttFrames(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const header = bytes[offset++];
+        const packetType = header >>> 4;
+        let multiplier = 1;
+        let remLen = 0;
+        while (offset < bytes.length) {
+          const encodedByte = bytes[offset++];
+          remLen += (encodedByte & 127) * multiplier;
+          multiplier *= 128;
+          if ((encodedByte & 128) === 0) break;
+        }
+        if (offset + remLen > bytes.length) break;
+
+        if (packetType === 3) {
+          // PUBLISH packet
+          const topicLen = (bytes[offset] << 8) | bytes[offset + 1];
+          const qos = (header >> 1) & 0x03;
+          const varHeaderLen = 2 + topicLen + (qos > 0 ? 2 : 0);
+          const payloadStart = offset + varHeaderLen;
+          const payloadEnd = offset + remLen;
+          if (payloadEnd > payloadStart) {
+            const text = new TextDecoder().decode(bytes.subarray(payloadStart, payloadEnd));
+            dispatchEnvelope(text);
+          }
+        }
+        offset += remLen;
+      }
+    }
+
+    function dispatchEnvelope(rawStrOrObj) {
+      try {
+        const env = typeof rawStrOrObj === 'string' ? JSON.parse(rawStrOrObj) : rawStrOrObj;
+        if (!env || !env.eventId || !env.type) return;
+        if (seenEventIds.has(env.eventId)) return;
+        seenEventIds.add(env.eventId);
+        if (onEventCallback) onEventCallback(env);
+      } catch (_) {}
+    }
+
+    function connectMqttBroker(brokerUrl, mqttTopic) {
+      try {
+        const ws = new WebSocket(brokerUrl, 'mqtt');
+        ws.binaryType = 'arraybuffer';
+        let pingInterval = null;
+
+        ws.onopen = () => {
+          const cid = 'omnivox_' + Math.random().toString(36).slice(2, 10);
+          ws.send(buildMqttConnectPacket(cid));
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(buildMqttSubscribePacket(mqttTopic));
+            }
+          }, 120);
+
+          pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
+            }
+          }, 25000);
+        };
+
+        ws.onmessage = (ev) => {
+          if (ev.data instanceof ArrayBuffer) {
+            parseIncomingMqttFrames(ev.data);
+          }
+        };
+
+        ws.onclose = () => {
+          if (pingInterval) clearInterval(pingInterval);
+        };
+        ws.onerror = () => {
+          if (pingInterval) clearInterval(pingInterval);
+        };
+
+        mqttSockets.push(ws);
+      } catch (_) {}
+    }
+
+    function connectNtfyChannel(ntfyTopic) {
+      // 1. Live WebSocket stream (with ?since=20m so a newly joined phone immediately receives the Host's presence!)
+      try {
+        const ws = new WebSocket(`wss://ntfy.sh/${ntfyTopic}/ws?since=20m`);
+        ntfyWs = ws;
+        ws.onmessage = (ev) => {
+          try {
+            const outer = JSON.parse(ev.data);
+            if (outer && outer.event === 'message' && outer.message) {
+              dispatchEnvelope(outer.message);
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+
+      // 2. HTTPS Poll fallback (in case carrier network blocks WebSockets)
+      const pollRecent = async () => {
+        try {
+          const res = await fetch(`https://ntfy.sh/${ntfyTopic}/json?poll=1&since=20m`);
+          if (!res.ok) return;
+          const text = await res.text();
+          text.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            try {
+              const outer = JSON.parse(line);
+              if (outer && outer.event === 'message' && outer.message) {
+                dispatchEnvelope(outer.message);
+              }
+            } catch (_) {}
+          });
+        } catch (_) {}
+      };
+
+      pollRecent();
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(pollRecent, 4500);
+    }
+
+    function connectRoom(roomSlug, callback) {
+      const cleanSlug = (roomSlug || 'DEFAULT').toLowerCase().replace(/[^a-z0-9]/g, '');
+      activeTopic = `omnivox_v05_${cleanSlug}`;
+      onEventCallback = callback;
+
+      // Local BroadcastChannel
+      if (bc) {
+        bc.onmessage = (ev) => dispatchEnvelope(ev.data);
+      }
+
+      // Connect ntfy.sh over port 443 (WSS + HTTPS poll)
+      connectNtfyChannel(activeTopic);
+
+      // Connect dual public MQTT-over-WSS brokers in parallel
+      const mqttTopic = `omnivox/v05/room/${cleanSlug}`;
+      connectMqttBroker('wss://broker.emqx.io:8084/mqtt', mqttTopic);
+      connectMqttBroker('wss://broker.hivemq.com:8884/mqtt', mqttTopic);
+    }
+
+    function publish(type, payload, retainMqtt = false) {
+      if (!activeTopic) return;
+      const envelope = {
+        eventId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        payload,
+        ts: Date.now()
+      };
+      seenEventIds.add(envelope.eventId);
+      const rawJson = JSON.stringify(envelope);
+
+      // 1. Local tab sync
+      if (bc) {
+        try { bc.postMessage(envelope); } catch (_) {}
+      }
+
+      // 2. MQTT over WSS publish
+      const cleanSlug = activeTopic.replace('omnivox_v05_', '');
+      const mqttTopic = `omnivox/v05/room/${cleanSlug}`;
+      const mqttFrame = buildMqttPublishPacket(mqttTopic, rawJson, retainMqtt);
+      mqttSockets.forEach(ws => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(mqttFrame); } catch (_) {}
+        }
+      });
+
+      // 3. ntfy.sh HTTPS POST (port 443 universal delivery + 20m replay cache for joining phones)
+      fetch(`https://ntfy.sh/${activeTopic}`, {
+        method: 'POST',
+        body: rawJson
+      }).catch(() => {});
+    }
+
+    return { connectRoom, publish };
+  })();
+
+  // ==========================================================================
+  // 4. UNIVERSAL 50-LANGUAGE TRANSLATION ENGINE (INSTANT CORPUS + NEURAL CLOUD API)
   // ==========================================================================
   const CONVERSATION_CORPUS = [
     {
@@ -359,7 +615,6 @@
     const cacheKey = `${srcMeta.iso}|${tgtMeta.iso}|${clean.toLowerCase()}`;
     if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
 
-    // 1. Check built-in instant corpus
     const norm = clean.toLowerCase().replace(/[.,!?¡¿]/g, '').trim();
     for (const item of CONVERSATION_CORPUS) {
       for (const val of Object.values(item)) {
@@ -373,7 +628,6 @@
       }
     }
 
-    // 2. Live Neural Translation via CORS-friendly endpoint (works for all 50 languages in user's browser)
     try {
       const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(srcMeta.iso)}&tl=${encodeURIComponent(tgtMeta.iso)}&dt=t&q=${encodeURIComponent(clean)}`;
       const res = await fetch(url);
@@ -389,7 +643,6 @@
       }
     } catch (_) {}
 
-    // 3. Secondary Fallback: MyMemory Neural API
     try {
       const pair = `${srcMeta.iso}|${tgtMeta.iso}`;
       const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${encodeURIComponent(pair)}`);
@@ -407,7 +660,7 @@
   }
 
   // ==========================================================================
-  // 4. AVATAR SVG GENERATOR & INTERNATIONAL GUESTS POOL
+  // 5. AVATAR SVG GENERATOR & COMPACT NETWORK THUMBNAIL COMPRESSOR
   // ==========================================================================
   function generateSvgAvatarDataUrl(name, bgColor = '#10B981') {
     const initials = (name || 'U')
@@ -440,7 +693,7 @@
   ];
 
   // ==========================================================================
-  // 5. APPLICATION STATE
+  // 6. APPLICATION STATE
   // ==========================================================================
   const state = {
     userId: 'u-' + Math.random().toString(36).slice(2, 9),
@@ -449,7 +702,9 @@
     roomSlug: '',
     nativeLang: 'pt-BR',
     avatarDataUrl: '',
+    avatarThumbUrl: '', // Compact 64x64 JPEG (<1.3KB) for instant cross-phone sync
     isJoiningFromQr: false,
+    qrHostInfo: null,   // { name, lang } extracted from QR URL if present
     inRoom: false,
 
     cameraStream: null,
@@ -467,14 +722,13 @@
     hostClauseCursor: 0,
     guestCursor: 0,
 
-    audioCtx: null,
-    bc: typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('omnivox_live_room_v2') : null
+    audioCtx: null
   };
 
   const $ = (id) => document.getElementById(id);
 
   // ==========================================================================
-  // 6. DEVICE NATIVE VOICE DETECTOR & 50-LANGUAGE MODAL
+  // 7. DEVICE NATIVE VOICE DETECTOR & 50-LANGUAGE MODAL
   // ==========================================================================
   function refreshInstalledVoices() {
     if (!('speechSynthesis' in window)) return;
@@ -493,7 +747,7 @@
   }
 
   function hasDeviceVoice(langObj) {
-    if (state.installedVoiceLangs.size === 0) return true; // Default optimistic before voices load
+    if (state.installedVoiceLangs.size === 0) return true;
     return (
       state.installedVoiceLangs.has(langObj.code.toLowerCase()) ||
       state.installedVoiceLangs.has(langObj.iso.toLowerCase())
@@ -504,10 +758,8 @@
     const meta = getLangMeta(langCode);
     state.nativeLang = meta.code;
 
-    // Update indicator label on Setup screen
     $('selected-lang-indicator').textContent = `${meta.flag} ${meta.nativeName}`;
 
-    // Highlight either one of the Top 5 buttons OR the 6th "Outros" slot!
     document.querySelectorAll('.quick-lang-btn').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.lang === meta.code);
     });
@@ -525,7 +777,6 @@
       $('other-btn-sub').textContent = '+45 idiomas';
     }
 
-    // Update in-room pill & self participant card if already inside room
     if ($('inroom-my-lang-label')) {
       $('inroom-my-lang-label').textContent = `${meta.flag} ${meta.short}`;
     }
@@ -535,9 +786,7 @@
       if (me) {
         me.lang = meta.code;
         renderRoomView();
-        if (state.bc) {
-          state.bc.postMessage({ type: 'participant_join', roomName: state.roomName, participant: me });
-        }
+        broadcastMyPresence();
       }
     }
   }
@@ -605,17 +854,30 @@
   }
 
   // ==========================================================================
-  // 7. SPLASH SCREEN (4 SECONDS TRANSITION) & URL PARAM CHECK
+  // 8. SPLASH SCREEN (4 SECONDS TRANSITION) & URL PARAM CHECK
   // ==========================================================================
   function initSplashAndUrl() {
+    if ($('splash-version-badge')) {
+      $('splash-version-badge').textContent = APP_VERSION;
+    }
+
     const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
+    const roomParam = params.get('r') || params.get('room');
+    const hostNameParam = params.get('h');
+    const hostLangParam = params.get('l');
+
     if (roomParam) {
-      state.roomName = decodeURIComponent(roomParam);
+      state.roomName = roomParam.trim();
       state.isJoiningFromQr = true;
+      if (hostNameParam || hostLangParam) {
+        state.qrHostInfo = {
+          name: hostNameParam || 'Anfitrião',
+          lang: hostLangParam || 'pt-BR'
+        };
+      }
       $('input-room-name').value = state.roomName;
       $('setup-main-title').textContent = `Entrar em "${state.roomName}"`;
-      $('setup-subtitle').textContent = 'Você escaneou o QR Code! Escolha entre 50 idiomas e tire uma selfie para entrar.';
+      $('setup-subtitle').textContent = 'Você escaneou o QR Code! Escolha seu idioma, adicione sua foto e entre na sala.';
       $('btn-submit-label').textContent = 'Entrar na Sala Agora';
     }
 
@@ -630,8 +892,17 @@
   }
 
   // ==========================================================================
-  // 8. CAMERA SELFIE & PHOTO UPLOAD LOGIC
+  // 9. CAMERA SELFIE & PHOTO UPLOAD LOGIC (WITH 56x56 NETWORK THUMBNAIL)
   // ==========================================================================
+  function createThumbFromCanvas(sourceCanvas) {
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 56;
+    thumbCanvas.height = 56;
+    const tCtx = thumbCanvas.getContext('2d');
+    tCtx.drawImage(sourceCanvas, 0, 0, 56, 56);
+    return thumbCanvas.toDataURL('image/jpeg', 0.55);
+  }
+
   async function handleCameraButton() {
     const video = $('camera-video');
     const img = $('avatar-img');
@@ -654,7 +925,8 @@
       ctx.scale(-1, 1);
       ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 240, 240);
 
-      state.avatarDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+      state.avatarDataUrl = canvas.toDataURL('image/jpeg', 0.84);
+      state.avatarThumbUrl = createThumbFromCanvas(canvas);
       stopCameraStream();
 
       img.src = state.avatarDataUrl;
@@ -711,7 +983,8 @@
         const sy = (tempImg.height - minDim) / 2;
         ctx.drawImage(tempImg, sx, sy, minDim, minDim, 0, 0, 240, 240);
 
-        state.avatarDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+        state.avatarDataUrl = canvas.toDataURL('image/jpeg', 0.84);
+        state.avatarThumbUrl = createThumbFromCanvas(canvas);
         const img = $('avatar-img');
         img.src = state.avatarDataUrl;
         img.classList.remove('hidden');
@@ -726,7 +999,7 @@
   }
 
   // ==========================================================================
-  // 9. iOS SAFARI AUDIO UNLOCK (-70dB KEEP-ALIVE + WAKELOCK)
+  // 10. iOS SAFARI AUDIO UNLOCK (-70dB KEEP-ALIVE + WAKELOCK)
   // ==========================================================================
   async function unlockMobileAudio() {
     try {
@@ -770,11 +1043,28 @@
   }
 
   // ==========================================================================
-  // 10. ROOM CREATION, QR CODE DISPLAY & AUTOMATIC SHRINK TO CORNER ON 1ST JOIN
+  // 11. ROOM CREATION, QR CODE DISPLAY & MULTI-PHONE REALTIME SYNC
   // ==========================================================================
   function getShareableRoomUrl() {
     const base = `${window.location.origin}${window.location.pathname}`;
-    return `${base}?room=${encodeURIComponent(state.roomName)}`;
+    const r = encodeURIComponent(state.roomName.slice(0, 22));
+    return `${base}?r=${r}`;
+  }
+
+  function getMyNetworkProfile() {
+    return {
+      id: state.userId,
+      name: state.userName,
+      lang: state.nativeLang,
+      avatar: state.avatarThumbUrl || generateSvgAvatarDataUrl(state.userName, '#10B981')
+    };
+  }
+
+  function broadcastMyPresence() {
+    CloudRelay.publish('participant_join', {
+      roomSlug: state.roomSlug,
+      participant: getMyNetworkProfile()
+    }, true);
   }
 
   async function handleSetupSubmit(e) {
@@ -782,13 +1072,14 @@
     stopCameraStream();
     await unlockMobileAudio();
 
-    state.userName = $('input-my-name').value.trim() || 'Anfitrião';
+    state.userName = $('input-my-name').value.trim() || 'Participante';
     state.roomName = $('input-room-name').value.trim() || 'Sala Omnivox';
-    state.roomSlug = state.roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'OMNI26';
+    state.roomSlug = state.roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'OMNI26';
     state.inRoom = true;
 
     if (!state.avatarDataUrl) {
       state.avatarDataUrl = generateSvgAvatarDataUrl(state.userName, '#10B981');
+      state.avatarThumbUrl = state.avatarDataUrl;
     }
 
     const me = {
@@ -823,25 +1114,73 @@
     $('setup-screen').classList.add('hidden');
     $('room-screen').classList.remove('hidden');
 
-    initRealtimeSync(me);
+    renderRoomView();
 
-    if (state.isJoiningFromQr) {
+    // Connect Cross-Device Realtime Relay (ntfy WSS/HTTPS + MQTT over WSS + BroadcastChannel)
+    CloudRelay.connectRoom(state.roomSlug, handleCloudEvent);
+
+    // Announce our presence immediately + retry after 900ms once MQTT/WSS handshakes settle
+    broadcastMyPresence();
+    setTimeout(broadcastMyPresence, 900);
+    setTimeout(broadcastMyPresence, 2500);
+  }
+
+  function handleCloudEvent(envelope) {
+    const { type, payload } = envelope;
+    if (!payload || payload.roomSlug !== state.roomSlug) return;
+
+    if (type === 'participant_join') {
+      const p = payload.participant;
+      if (!p || p.id === state.userId) return;
+
+      const isNew = !state.participants.some(item => item.id === p.id);
       addOrUpdateParticipant({
-        id: 'host-creator',
-        name: 'Anfitrião da Sala',
-        lang: state.nativeLang === 'pt-BR' ? 'en-US' : 'pt-BR',
-        avatar: generateSvgAvatarDataUrl('Anfitrião', '#F59E0B'),
+        id: p.id,
+        name: p.name,
+        lang: p.lang,
+        avatar: p.avatar || generateSvgAvatarDataUrl(p.name, '#0EA5E9'),
+        isMe: false,
         speaking: false
       });
-    }
 
-    renderRoomView();
+      // Whenever a new phone joins our room, reply with our own presence so both phones see the complete participant list!
+      if (isNew) {
+        CloudRelay.publish('participant_ack', {
+          roomSlug: state.roomSlug,
+          targetId: p.id,
+          participant: getMyNetworkProfile()
+        }, true);
+      }
+    } else if (type === 'participant_ack') {
+      const p = payload.participant;
+      if (!p || p.id === state.userId) return;
+      addOrUpdateParticipant({
+        id: p.id,
+        name: p.name,
+        lang: p.lang,
+        avatar: p.avatar || generateSvgAvatarDataUrl(p.name, '#F59E0B'),
+        isMe: false,
+        speaking: false
+      });
+    } else if (type === 'speaking_state') {
+      if (payload.speakerId === state.userId) return;
+      state.activeSpeakerId = payload.speaking ? payload.speakerId : null;
+      renderRoomView();
+    } else if (type === 'speech_clause') {
+      if (payload.clause && payload.clause.speakerId !== state.userId) {
+        receiveSpeechClause(payload.clause);
+      }
+    }
   }
 
   function addOrUpdateParticipant(p) {
     const existingIdx = state.participants.findIndex(item => item.id === p.id);
     if (existingIdx !== -1) {
-      state.participants[existingIdx] = { ...state.participants[existingIdx], ...p };
+      state.participants[existingIdx] = {
+        ...state.participants[existingIdx],
+        ...p,
+        avatar: state.participants[existingIdx].isMe ? state.avatarDataUrl : (p.avatar || state.participants[existingIdx].avatar)
+      };
     } else {
       state.participants.push(p);
       playSonicCue(680, 0.06);
@@ -856,11 +1195,11 @@
     const counterLabel = $('room-participant-counter');
 
     if (count <= 1) {
-      counterLabel.textContent = '1 pessoa • Aguardando convidados';
+      counterLabel.textContent = `1 pessoa • Sala #${state.roomSlug} pronta`;
       qrHero.classList.remove('hidden');
       cornerQrBtn.classList.add('hidden');
     } else {
-      counterLabel.textContent = `${count} participantes ativos`;
+      counterLabel.textContent = `${count} participantes conectados`;
       qrHero.classList.add('hidden');
       cornerQrBtn.classList.remove('hidden');
     }
@@ -885,31 +1224,6 @@
     }).join('');
   }
 
-  // ==========================================================================
-  // 11. REALTIME MULTI-TAB SYNC & GUEST SIMULATOR
-  // ==========================================================================
-  function initRealtimeSync(me) {
-    if (state.bc) {
-      state.bc.postMessage({ type: 'participant_join', roomName: state.roomName, participant: me });
-      state.bc.onmessage = (ev) => {
-        const data = ev.data;
-        if (!data || data.roomName !== state.roomName) return;
-
-        if (data.type === 'participant_join') {
-          addOrUpdateParticipant({ ...data.participant, isMe: false });
-          state.bc.postMessage({ type: 'participant_ack', roomName: state.roomName, participant: me });
-        } else if (data.type === 'participant_ack') {
-          addOrUpdateParticipant({ ...data.participant, isMe: false });
-        } else if (data.type === 'speaking_state') {
-          state.activeSpeakerId = data.speaking ? data.speakerId : null;
-          renderRoomView();
-        } else if (data.type === 'speech_clause') {
-          receiveSpeechClause(data.payload);
-        }
-      };
-    }
-  }
-
   function simulateNextParticipantJoin() {
     const template = SIMULATED_GUESTS[state.guestCursor % SIMULATED_GUESTS.length];
     state.guestCursor += 1;
@@ -927,13 +1241,14 @@
     };
 
     addOrUpdateParticipant(newGuest);
-    if (state.bc) {
-      state.bc.postMessage({ type: 'participant_join', roomName: state.roomName, participant: newGuest });
-    }
+    CloudRelay.publish('participant_join', {
+      roomSlug: state.roomSlug,
+      participant: newGuest
+    });
   }
 
   // ==========================================================================
-  // 12. FIXED BOTTOM PUSH-TO-TALK & VOICE SYNTHESIS across 50 LANGUAGES
+  // 12. FIXED BOTTOM PUSH-TO-TALK & VOICE SYNTHESIS ACROSS 50 LANGUAGES
   // ==========================================================================
   function startPushToTalk() {
     if (state.isHoldingPtt) return;
@@ -955,9 +1270,11 @@
     $('ptt-sub-label').textContent = `Ouvindo você em ${myMeta.flag} ${myMeta.nativeName}...`;
 
     renderRoomView();
-    if (state.bc) {
-      state.bc.postMessage({ type: 'speaking_state', roomName: state.roomName, speakerId: state.userId, speaking: true });
-    }
+    CloudRelay.publish('speaking_state', {
+      roomSlug: state.roomSlug,
+      speakerId: state.userId,
+      speaking: true
+    });
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -1000,9 +1317,11 @@
 
     playSonicCue(420, 0.05);
     renderRoomView();
-    if (state.bc) {
-      state.bc.postMessage({ type: 'speaking_state', roomName: state.roomName, speakerId: state.userId, speaking: false });
-    }
+    CloudRelay.publish('speaking_state', {
+      roomSlug: state.roomSlug,
+      speakerId: state.userId,
+      speaking: false
+    });
 
     let finalSpeech = state.spokenTranscript.trim();
     if (!finalSpeech) {
@@ -1012,20 +1331,24 @@
       finalSpeech = item[myMeta.code] || item[myMeta.iso] || item.pt;
     }
 
-    const me = state.participants.find(p => p.id === state.userId);
-    const payload = {
+    const clausePayload = {
       id: 'msg-' + Date.now(),
       speakerId: state.userId,
       speakerName: state.userName,
-      speakerAvatar: me ? me.avatar : state.avatarDataUrl,
+      speakerAvatar: state.avatarThumbUrl || state.avatarDataUrl,
       sourceLang: state.nativeLang,
       originalText: finalSpeech
     };
 
-    await receiveSpeechClause(payload);
-    if (state.bc) {
-      state.bc.postMessage({ type: 'speech_clause', roomName: state.roomName, payload });
-    }
+    CloudRelay.publish('speech_clause', {
+      roomSlug: state.roomSlug,
+      clause: clausePayload
+    });
+
+    await receiveSpeechClause({
+      ...clausePayload,
+      speakerAvatar: state.avatarDataUrl
+    });
   }
 
   async function receiveSpeechClause(payload) {
@@ -1052,7 +1375,7 @@
     const card = document.createElement('div');
     card.className = 'speech-card';
     card.innerHTML = `
-      <img class="speech-card-avatar" src="${payload.speakerAvatar}" alt="${escapeHtml(payload.speakerName)}" />
+      <img class="speech-card-avatar" src="${payload.speakerAvatar || generateSvgAvatarDataUrl(payload.speakerName)}" alt="${escapeHtml(payload.speakerName)}" />
       <div class="speech-card-body">
         <div class="speech-card-meta">
           <strong>${escapeHtml(payload.speakerName)} (${srcMeta.flag} ${srcMeta.short})</strong>
@@ -1064,7 +1387,11 @@
     `;
     feed.prepend(card);
 
-    speakTts(translatedText, tgtMeta.code);
+    // Speak out loud on listeners' phones (or on single-device demo if only 1 real phone is in room)
+    const hasRealRemoteParticipants = state.participants.some(p => !p.isMe && !String(p.id).startsWith('guest-'));
+    if (payload.speakerId !== state.userId || !hasRealRemoteParticipants) {
+      speakTts(translatedText, tgtMeta.code);
+    }
   }
 
   function speakTts(text, langCode) {
@@ -1102,13 +1429,18 @@
     setTimeout(() => {
       state.activeSpeakerId = null;
       renderRoomView();
-      receiveSpeechClause({
+      const clause = {
         id: 'msg-' + Date.now(),
         speakerId: guest.id,
         speakerName: guest.name,
         speakerAvatar: guest.avatar,
         sourceLang: guest.lang,
         originalText: spokenText
+      };
+      receiveSpeechClause(clause);
+      CloudRelay.publish('speech_clause', {
+        roomSlug: state.roomSlug,
+        clause
       });
     }, 1050);
   }
@@ -1122,14 +1454,12 @@
     $('input-file-photo').addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
     $('input-file-camera-fallback').addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
 
-    // Top 5 Quick Language Buttons
     document.querySelectorAll('.quick-lang-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         selectNativeLanguage(btn.dataset.lang);
       });
     });
 
-    // "Outros (+45 idiomas)" Button & In-room Language Switcher
     $('btn-other-languages').addEventListener('click', openLanguageCatalogModal);
     $('btn-inroom-lang-switch').addEventListener('click', openLanguageCatalogModal);
     $('btn-close-lang-modal').addEventListener('click', closeLanguageCatalogModal);
@@ -1137,7 +1467,6 @@
       if (e.target === $('lang-catalog-modal')) closeLanguageCatalogModal();
     });
 
-    // Search Input & Region Tabs inside 50-Language Modal
     $('input-search-lang').addEventListener('input', (e) => {
       state.searchQuery = e.target.value;
       renderLanguageCatalogModal();
@@ -1152,10 +1481,8 @@
       });
     });
 
-    // Setup Form Submit
     $('form-setup-room').addEventListener('submit', handleSetupSubmit);
 
-    // Share & Copy Room Link
     const triggerShare = async () => {
       const shareUrl = getShareableRoomUrl();
       if (navigator.share) {
@@ -1186,12 +1513,10 @@
       setTimeout(() => { $('lbl-copy-link').textContent = '🔗 Copiar Link'; }, 1800);
     });
 
-    // Simulate Participant Joining
     $('btn-simulate-first-guest').addEventListener('click', simulateNextParticipantJoin);
     $('btn-add-simulated-guest').addEventListener('click', simulateNextParticipantJoin);
     $('btn-sim-guest-speak').addEventListener('click', simulateForeignParticipantSpeech);
 
-    // Corner Mini QR Code Modal
     $('btn-corner-qr').addEventListener('click', () => {
       $('qr-modal').classList.remove('hidden');
     });
@@ -1202,7 +1527,6 @@
       if (e.target === $('qr-modal')) $('qr-modal').classList.add('hidden');
     });
 
-    // Fixed Bottom Push-to-Talk Button
     const pttBtn = $('btn-fixed-ptt');
     pttBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -1222,7 +1546,7 @@
     }, { passive: false });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.5').catch(() => {});
     }
   }
 
