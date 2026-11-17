@@ -1,0 +1,17 @@
+{
+  "name": "omnivox",
+  "version": "1.0.0",
+  "description": "Omnivox — Progressive Web App de tradução simultânea multidirecional via QR Code e Push-to-Talk",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "pwa",
+    "realtime-translation",
+    "push-to-talk",
+    "websocket"
+  ],
+  "license": "MIT"
+}
