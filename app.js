@@ -2,10 +2,80 @@
   'use strict';
 
   // ==========================================================================
-  // 1. REAL ISO/IEC 18004 QR CODE SVG GENERATOR (PURE JS, SCANNABLE BY IPHONE/ANDROID)
+  // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
+  // ==========================================================================
+  const LANGUAGES_CATALOG = [
+    // Americas & Europe (28 languages/dialects)
+    { code: 'pt-BR', flag: '🇧🇷', nativeName: 'Português (Brasil)', ptName: 'Português do Brasil', short: 'PT-BR', iso: 'pt', region: 'americas_europe' },
+    { code: 'pt-PT', flag: '🇵🇹', nativeName: 'Português (Portugal)', ptName: 'Português Europeu', short: 'PT-PT', iso: 'pt', region: 'americas_europe' },
+    { code: 'en-US', flag: '🇺🇸', nativeName: 'English (US)', ptName: 'Inglês (EUA)', short: 'EN-US', iso: 'en', region: 'americas_europe' },
+    { code: 'en-GB', flag: '🇬🇧', nativeName: 'English (UK)', ptName: 'Inglês (Reino Unido)', short: 'EN-GB', iso: 'en', region: 'americas_europe' },
+    { code: 'en-CA', flag: '🇨🇦', nativeName: 'English (Canada)', ptName: 'Inglês (Canadá)', short: 'EN-CA', iso: 'en', region: 'americas_europe' },
+    { code: 'es-ES', flag: '🇪🇸', nativeName: 'Español (España)', ptName: 'Espanhol (Espanha)', short: 'ES-ES', iso: 'es', region: 'americas_europe' },
+    { code: 'es-MX', flag: '🇲🇽', nativeName: 'Español (México)', ptName: 'Espanhol (México)', short: 'ES-MX', iso: 'es', region: 'americas_europe' },
+    { code: 'es-AR', flag: '🇦🇷', nativeName: 'Español (Argentina)', ptName: 'Espanhol (Argentina)', short: 'ES-AR', iso: 'es', region: 'americas_europe' },
+    { code: 'fr-FR', flag: '🇫🇷', nativeName: 'Français (France)', ptName: 'Francês (França)', short: 'FR-FR', iso: 'fr', region: 'americas_europe' },
+    { code: 'fr-CA', flag: '🇨🇦', nativeName: 'Français (Canada)', ptName: 'Francês (Canadá)', short: 'FR-CA', iso: 'fr', region: 'americas_europe' },
+    { code: 'de-DE', flag: '🇩🇪', nativeName: 'Deutsch', ptName: 'Alemão', short: 'DE', iso: 'de', region: 'americas_europe' },
+    { code: 'it-IT', flag: '🇮🇹', nativeName: 'Italiano', ptName: 'Italiano', short: 'IT', iso: 'it', region: 'americas_europe' },
+    { code: 'nl-NL', flag: '🇳🇱', nativeName: 'Nederlands', ptName: 'Holandês / Neerlandês', short: 'NL', iso: 'nl', region: 'americas_europe' },
+    { code: 'pl-PL', flag: '🇵🇱', nativeName: 'Polski', ptName: 'Polonês', short: 'PL', iso: 'pl', region: 'americas_europe' },
+    { code: 'ru-RU', flag: '🇷🇺', nativeName: 'Русский', ptName: 'Russo', short: 'RU', iso: 'ru', region: 'americas_europe' },
+    { code: 'uk-UA', flag: '🇺🇦', nativeName: 'Українська', ptName: 'Ucraniano', short: 'UK', iso: 'uk', region: 'americas_europe' },
+    { code: 'sv-SE', flag: '🇸🇪', nativeName: 'Svenska', ptName: 'Sueco', short: 'SV', iso: 'sv', region: 'americas_europe' },
+    { code: 'no-NO', flag: '🇳🇴', nativeName: 'Norsk', ptName: 'Norueguês', short: 'NO', iso: 'no', region: 'americas_europe' },
+    { code: 'da-DK', flag: '🇩🇰', nativeName: 'Dansk', ptName: 'Dinamarquês', short: 'DA', iso: 'da', region: 'americas_europe' },
+    { code: 'fi-FI', flag: '🇫🇮', nativeName: 'Suomi', ptName: 'Finlandês', short: 'FI', iso: 'fi', region: 'americas_europe' },
+    { code: 'el-GR', flag: '🇬🇷', nativeName: 'Ελληνικά', ptName: 'Grego', short: 'EL', iso: 'el', region: 'americas_europe' },
+    { code: 'cs-CZ', flag: '🇨🇿', nativeName: 'Čeština', ptName: 'Tcheco', short: 'CS', iso: 'cs', region: 'americas_europe' },
+    { code: 'ro-RO', flag: '🇷🇴', nativeName: 'Română', ptName: 'Romeno', short: 'RO', iso: 'ro', region: 'americas_europe' },
+    { code: 'hu-HU', flag: '🇭🇺', nativeName: 'Magyar', ptName: 'Húngaro', short: 'HU', iso: 'hu', region: 'americas_europe' },
+    { code: 'bg-BG', flag: '🇧🇬', nativeName: 'Български', ptName: 'Búlgaro', short: 'BG', iso: 'bg', region: 'americas_europe' },
+    { code: 'hr-HR', flag: '🇭🇷', nativeName: 'Hrvatski', ptName: 'Croata', short: 'HR', iso: 'hr', region: 'americas_europe' },
+    { code: 'sk-SK', flag: '🇸🇰', nativeName: 'Slovenčina', ptName: 'Eslovaco', short: 'SK', iso: 'sk', region: 'americas_europe' },
+    { code: 'ca-ES', flag: '🇪🇸', nativeName: 'Català', ptName: 'Catalão', short: 'CA', iso: 'ca', region: 'americas_europe' },
+
+    // Asia & Oceania (15 languages)
+    { code: 'ja-JP', flag: '🇯🇵', nativeName: '日本語', ptName: 'Japonês', short: 'JA', iso: 'ja', region: 'asia_pacific' },
+    { code: 'zh-CN', flag: '🇨🇳', nativeName: '中文 (普通话)', ptName: 'Chinês Mandarim (Simplificado)', short: 'ZH-CN', iso: 'zh-CN', region: 'asia_pacific' },
+    { code: 'zh-TW', flag: '🇹🇼', nativeName: '繁體中文 (台灣)', ptName: 'Chinês Tradicional (Taiwan)', short: 'ZH-TW', iso: 'zh-TW', region: 'asia_pacific' },
+    { code: 'zh-HK', flag: '🇭🇰', nativeName: '廣東話 (香港)', ptName: 'Cantonês (Hong Kong)', short: 'ZH-HK', iso: 'zh-TW', region: 'asia_pacific' },
+    { code: 'ko-KR', flag: '🇰🇷', nativeName: '한국어', ptName: 'Coreano', short: 'KO', iso: 'ko', region: 'asia_pacific' },
+    { code: 'hi-IN', flag: '🇮🇳', nativeName: 'हिन्दी', ptName: 'Hindi (Índia)', short: 'HI', iso: 'hi', region: 'asia_pacific' },
+    { code: 'bn-IN', flag: '🇮🇳', nativeName: 'বাংলা', ptName: 'Bengali', short: 'BN', iso: 'bn', region: 'asia_pacific' },
+    { code: 'ta-IN', flag: '🇮🇳', nativeName: 'தமிழ்', ptName: 'Tâmil', short: 'TA', iso: 'ta', region: 'asia_pacific' },
+    { code: 'te-IN', flag: '🇮🇳', nativeName: 'తెలుగు', ptName: 'Telugu', short: 'TE', iso: 'te', region: 'asia_pacific' },
+    { code: 'th-TH', flag: '🇹🇭', nativeName: 'ไทย', ptName: 'Tailandês', short: 'TH', iso: 'th', region: 'asia_pacific' },
+    { code: 'vi-VN', flag: '🇻🇳', nativeName: 'Tiếng Việt', ptName: 'Vietnamita', short: 'VI', iso: 'vi', region: 'asia_pacific' },
+    { code: 'id-ID', flag: '🇮🇩', nativeName: 'Bahasa Indonesia', ptName: 'Indonésio', short: 'ID', iso: 'id', region: 'asia_pacific' },
+    { code: 'ms-MY', flag: '🇲🇾', nativeName: 'Bahasa Melayu', ptName: 'Malaio', short: 'MS', iso: 'ms', region: 'asia_pacific' },
+    { code: 'fil-PH', flag: '🇵🇭', nativeName: 'Filipino / Tagalog', ptName: 'Filipino / Tagalo', short: 'FIL', iso: 'tl', region: 'asia_pacific' },
+    { code: 'en-AU', flag: '🇦🇺', nativeName: 'English (Australia)', ptName: 'Inglês (Austrália)', short: 'EN-AU', iso: 'en', region: 'asia_pacific' },
+
+    // Middle East & Africa (7 languages)
+    { code: 'ar-SA', flag: '🇸🇦', nativeName: 'العربية (السعودية)', ptName: 'Árabe (Arábia Saudita)', short: 'AR-SA', iso: 'ar', region: 'mea' },
+    { code: 'ar-EG', flag: '🇪🇬', nativeName: 'العربية (مصر)', ptName: 'Árabe (Egito)', short: 'AR-EG', iso: 'ar', region: 'mea' },
+    { code: 'he-IL', flag: '🇮🇱', nativeName: 'עברית', ptName: 'Hebraico (Israel)', short: 'HE', iso: 'iw', region: 'mea' },
+    { code: 'tr-TR', flag: '🇹🇷', nativeName: 'Türkçe', ptName: 'Turco', short: 'TR', iso: 'tr', region: 'mea' },
+    { code: 'fa-IR', flag: '🇮🇷', nativeName: 'فارسی', ptName: 'Persa / Farsi', short: 'FA', iso: 'fa', region: 'mea' },
+    { code: 'sw-KE', flag: '🇰🇪', nativeName: 'Kiswahili', ptName: 'Suaíli (África Oriental)', short: 'SW', iso: 'sw', region: 'mea' },
+    { code: 'af-ZA', flag: '🇿🇦', nativeName: 'Afrikaans', ptName: 'Africâner (África do Sul)', short: 'AF', iso: 'af', region: 'mea' }
+  ];
+
+  const TOP_5_CODES = new Set(['pt-BR', 'en-US', 'es-ES', 'fr-FR', 'de-DE']);
+
+  function getLangMeta(code) {
+    return (
+      LANGUAGES_CATALOG.find(l => l.code === code) ||
+      LANGUAGES_CATALOG.find(l => l.iso === (code || '').split('-')[0].toLowerCase()) ||
+      LANGUAGES_CATALOG[0]
+    );
+  }
+
+  // ==========================================================================
+  // 2. REAL ISO/IEC 18004 QR CODE SVG GENERATOR
   // ==========================================================================
   const QrCodeGen = (() => {
-    // GF(256) exponent & log tables for Reed-Solomon ECC
     const EXP = new Uint8Array(512);
     const LOG = new Uint8Array(256);
     (() => {
@@ -53,20 +123,18 @@
       return rem;
     }
 
-    // Version capacities for ECC Level L (Byte mode, single block versions 1..6)
     const VERSIONS = [
       null,
       { v: 1, size: 21, totalCodewords: 26, ecCodewords: 7, align: [] },
       { v: 2, size: 25, totalCodewords: 44, ecCodewords: 10, align: [6, 18] },
       { v: 3, size: 29, totalCodewords: 70, ecCodewords: 15, align: [6, 22] },
       { v: 4, size: 33, totalCodewords: 100, ecCodewords: 20, align: [6, 26] },
-      { v: 5, size: 37, totalCodewords: 134, ecCodewords: 26, align: [6, 30] },
-      { v: 6, size: 41, totalCodewords: 172, ecCodewords: 36, align: [6, 34], blocks: 2 }
+      { v: 5, size: 37, totalCodewords: 134, ecCodewords: 26, align: [6, 30] }
     ];
 
     function encodeTextToSvg(text, pixelSize = 188) {
       const utf8 = new TextEncoder().encode(text);
-      let ver = VERSIONS[5]; // Version 5 holds up to 106 bytes in single-block L
+      let ver = VERSIONS[5];
       for (let v = 1; v <= 5; v++) {
         const dataCap = VERSIONS[v].totalCodewords - VERSIONS[v].ecCodewords - 2;
         if (utf8.length <= dataCap) {
@@ -81,13 +149,11 @@
         for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1);
       }
 
-      // Byte mode indicator (0100) + byte count (8 bits for v1..9)
       pushBits(0b0100, 4);
       const safeBytes = utf8.slice(0, dataCodewordsLen - 2);
       pushBits(safeBytes.length, 8);
       for (let i = 0; i < safeBytes.length; i++) pushBits(safeBytes[i], 8);
 
-      // Terminator
       const maxBits = dataCodewordsLen * 8;
       for (let i = 0; i < 4 && bits.length < maxBits; i++) bits.push(0);
       while (bits.length % 8 !== 0) bits.push(0);
@@ -110,7 +176,7 @@
       allCodewords.set(ecBytes, dataCodewordsLen);
 
       const n = ver.size;
-      const modules = Array.from({ length: n }, () => new Int8Array(n)); // 0=light, 1=dark
+      const modules = Array.from({ length: n }, () => new Int8Array(n));
       const isFunc = Array.from({ length: n }, () => new Uint8Array(n));
 
       function setFunc(r, c, dark) {
@@ -135,13 +201,11 @@
       drawFinder(0, n - 7);
       drawFinder(n - 7, 0);
 
-      // Timing patterns
       for (let i = 8; i < n - 8; i++) {
         setFunc(6, i, i % 2 === 0);
         setFunc(i, 6, i % 2 === 0);
       }
 
-      // Alignment patterns
       if (ver.align.length > 0) {
         for (const ar of ver.align) {
           for (const ac of ver.align) {
@@ -155,7 +219,6 @@
         }
       }
 
-      // Reserve format info areas
       for (let i = 0; i <= 8; i++) {
         if (i !== 6) {
           setFunc(8, i, false);
@@ -166,9 +229,8 @@
         setFunc(8, n - 1 - i, false);
         setFunc(n - 1 - i, 8, false);
       }
-      setFunc(n - 8, 8, true); // Dark module
+      setFunc(n - 8, 8, true);
 
-      // Place data bits in upward/downward 2-column zig-zag
       let bitIdx = 0;
       const totalBits = allCodewords.length * 8;
       let upward = true;
@@ -184,7 +246,6 @@
                 dark = ((allCodewords[bitIdx >>> 3] >>> (7 - (bitIdx & 7))) & 1) !== 0;
                 bitIdx++;
               }
-              // Apply mask 0: (r + c) % 2 === 0
               if ((r + c) % 2 === 0) dark = !dark;
               modules[r][c] = dark ? 1 : 0;
             }
@@ -193,7 +254,6 @@
         upward = !upward;
       }
 
-      // Write Format Information for ECC Level L (01) + Mask 0 (000) -> precomputed BCH 0x77c4
       const formatBits = 0x77c4;
       for (let i = 0; i <= 5; i++) setFunc(8, i, ((formatBits >>> i) & 1) !== 0);
       setFunc(8, 7, ((formatBits >>> 6) & 1) !== 0);
@@ -207,9 +267,7 @@
       let pathD = '';
       for (let r = 0; r < n; r++) {
         for (let c = 0; c < n; c++) {
-          if (modules[r][c]) {
-            pathD += `M${c},${r}h1v1h-1z`;
-          }
+          if (modules[r][c]) pathD += `M${c},${r}h1v1h-1z`;
         }
       }
 
@@ -220,17 +278,8 @@
   })();
 
   // ==========================================================================
-  // 2. TRANSLATION DICTIONARY & MULTILINGUAL CORPUS
+  // 3. UNIVERSAL 50-LANGUAGE TRANSLATION ENGINE (INSTANT CORPUS + NEURAL CLOUD API)
   // ==========================================================================
-  const LANG_META = {
-    'pt-BR': { flag: '🇧🇷', name: 'Português', short: 'PT' },
-    'en-US': { flag: '🇺🇸', name: 'English', short: 'EN' },
-    'es-ES': { flag: '🇪🇸', name: 'Español', short: 'ES' },
-    'fr-FR': { flag: '🇫🇷', name: 'Français', short: 'FR' },
-    'de-DE': { flag: '🇩🇪', name: 'Deutsch', short: 'DE' },
-    'ja-JP': { flag: '🇯🇵', name: '日本語', short: 'JA' }
-  };
-
   const CONVERSATION_CORPUS = [
     {
       pt: "Olá pessoal, sejam todos muito bem-vindos à nossa sala no Omnivox!",
@@ -238,7 +287,19 @@
       es: "¡Hola a todos, bienvenidos a nuestra sala de traducción en Omnivox!",
       fr: "Bonjour à tous, bienvenue dans notre salle de traduction Omnivox !",
       de: "Hallo zusammen, herzlich willkommen in unserem Omnivox-Übersetzungsraum!",
-      ja: "皆さんこんにちは、Omnivox翻訳ルームへようこそ！"
+      it: "Ciao a tutti, benvenuti nella nostra sala di traduzione Omnivox!",
+      nl: "Hallo allemaal, welkom in onze Omnivox-vertaalkamer!",
+      pl: "Cześć всем, witamy w naszym pokoju tłumaczeń Omnivox!",
+      ru: "Всем привет, добро пожаловать в нашу комнату перевода Omnivox!",
+      uk: "Всім привіт, ласкаво просимо до нашої кімнати перекладу Omnivox!",
+      ja: "皆さんこんにちは、Omnivox翻訳ルームへようこそ！",
+      'zh-CN': "大家好，欢迎来到我们的 Omnivox 同声传译室！",
+      'zh-TW': "大家好，歡迎來到我們的 Omnivox 同步翻譯室！",
+      ko: "여러분 안녕하세요, Omnivox 통역실에 오신 것을 환영합니다!",
+      ar: "مرحباً بالجميع، أهلاً بكم في غرفة الترجمة الفورية Omnivox!",
+      hi: "नमस्ते सभी को, हमारे Omnivox अनुवाद कक्ष में आपका स्वागत है!",
+      tr: "Herkese merhaba, Omnivox çeviri odamıza hoş geldiniz!",
+      he: "שלום לכולם, ברוכים הבאים לחדר התרגום של Omnivox!"
     },
     {
       pt: "Estou ouvindo a tradução perfeitamente no meu idioma nativo.",
@@ -246,7 +307,15 @@
       es: "Estoy escuchando la traducción perfectamente en mi idioma nativo.",
       fr: "J'entends parfaitement la traduction dans ma langue maternelle.",
       de: "Ich höre die Übersetzung perfekt in meiner Muttersprache.",
-      ja: "母国語で翻訳がはっきりと聞こえています。"
+      it: "Sento perfettamente la traduzione nella mia lingua madre.",
+      nl: "Ik hoor de vertaling perfect in mijn moedertaal.",
+      ru: "Я отлично слышу перевод на своем родном языке.",
+      ja: "母国語で翻訳がはっきりと聞こえています。",
+      'zh-CN': "我能用母语非常清晰地听到翻译。",
+      ko: "모국어로 번역이 아주 잘 들립니다.",
+      ar: "أنا أسمع الترجمة بوضوح تام بلغتي الأم.",
+      hi: "मैं अपनी मातृभाषा में अनुवाद बिल्कुल साफ सुन रहा हूँ।",
+      tr: "Çeviriyi kendi ana dilimde mükemmel bir şekilde duyuyorum."
     },
     {
       pt: "Podemos alinhar os próximos passos do projeto agora mesmo.",
@@ -254,7 +323,13 @@
       es: "Podemos alinear los próximos pasos del proyecto ahora mismo.",
       fr: "Nous pouvons aligner les prochaines étapes du projet dès maintenant.",
       de: "Wir können die nächsten Schritte des Projekts gleich jetzt abstimmen.",
-      ja: "プロジェクトの次のステップを今すぐ調整できます。"
+      it: "Possiamo allineare i prossimi passi del progetto proprio ora.",
+      ru: "Мы можем согласовать следующие шаги проекта прямо сейчас.",
+      ja: "プロジェクトの次のステップを今すぐ調整できます。",
+      'zh-CN': "我们现在就可以对齐项目的下一步计划。",
+      ko: "지금 바로 프로젝트의 다음 단계를 조율할 수 있습니다.",
+      ar: "يمكننا تنسيق الخطوات التالية للمشروع الآن.",
+      hi: "हम अभी प्रोजेक्ट के अगले चरणों को तय कर सकते हैं।"
     },
     {
       pt: "Excelente experiência, entrou direto pelo QR Code sem precisar instalar nada!",
@@ -262,49 +337,77 @@
       es: "¡Excelente experiencia, entré directo con el código QR sin instalar nada!",
       fr: "Super expérience, rejoint directement via le QR Code sans rien installer !",
       de: "Tolle Erfahrung, direkt über den QR-Code beigetreten, ohne etwas zu installieren!",
-      ja: "素晴らしい体験です。何もインストールせずにQRコードから直接参加できました！"
+      it: "Ottima esperienza, sono entrato direttamente tramite QR Code senza installare nulla!",
+      ja: "素晴らしい体験です。何もインストールせずにQRコードから直接参加できました！",
+      'zh-CN': "体验太棒了，直接扫二维码就进来了，不需要安装任何东西！",
+      ko: "아무것도 설치하지 않고 QR 코드로 바로 접속할 수 있어서 정말 편리하네요!",
+      ar: "تجربة رائعة، دخلت مباشرة عبر رمز QR دون الحاجة لتثبيت أي تطبيق!"
     }
   ];
 
-  const WORD_MAP = {
-    'en-US': { 'olá': 'hello', 'oi': 'hi', 'bom dia': 'good morning', 'boa tarde': 'good afternoon', 'boa noite': 'good evening', 'obrigado': 'thank you', 'tudo bem': 'how are you', 'vamos começar': 'let us start' },
-    'es-ES': { 'olá': 'hola', 'oi': 'hola', 'bom dia': 'buenos días', 'boa tarde': 'buenas tardes', 'boa noite': 'buenas noches', 'obrigado': 'gracias', 'tudo bem': 'todo bien', 'vamos começar': 'vamos a empezar' },
-    'fr-FR': { 'olá': 'bonjour', 'oi': 'salut', 'bom dia': 'bonjour', 'boa tarde': 'bon après-midi', 'boa noite': 'bonsoir', 'obrigado': 'merci', 'tudo bem': 'tout va bien', 'vamos começar': 'commençons' },
-    'de-DE': { 'olá': 'hallo', 'oi': 'hi', 'bom dia': 'guten Morgen', 'boa tarde': 'guten Tag', 'boa noite': 'guten Abend', 'obrigado': 'danke', 'tudo bem': 'alles gut', 'vamos começar': 'fangen wir an' },
-    'ja-JP': { 'olá': 'こんにちは', 'oi': 'やあ', 'bom dia': 'おはようございます', 'obrigado': 'ありがとうございます', 'tudo bem': '元気です', 'vamos começar': '始めましょう' }
-  };
+  const translationCache = new Map();
 
-  function translateText(text, sourceLang, targetLang) {
+  async function translateUniversalAsync(text, sourceLangCode, targetLangCode) {
     if (!text || !text.trim()) return '';
-    if (sourceLang === targetLang) return text.trim();
+    if (sourceLangCode === targetLangCode) return text.trim();
 
     const clean = text.trim();
-    const norm = clean.toLowerCase().replace(/[.,!?¡¿]/g, '').trim();
-    const tgtShort = (targetLang || 'pt-BR').split('-')[0].toLowerCase();
+    const srcMeta = getLangMeta(sourceLangCode);
+    const tgtMeta = getLangMeta(targetLangCode);
+    if (srcMeta.iso === tgtMeta.iso && srcMeta.code === tgtMeta.code) return clean;
 
+    const cacheKey = `${srcMeta.iso}|${tgtMeta.iso}|${clean.toLowerCase()}`;
+    if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
+
+    // 1. Check built-in instant corpus
+    const norm = clean.toLowerCase().replace(/[.,!?¡¿]/g, '').trim();
     for (const item of CONVERSATION_CORPUS) {
       for (const val of Object.values(item)) {
-        if (val.toLowerCase().replace(/[.,!?¡¿]/g, '').trim() === norm && item[tgtShort]) {
-          return item[tgtShort];
+        if (val.toLowerCase().replace(/[.,!?¡¿]/g, '').trim() === norm) {
+          const direct = item[tgtMeta.code] || item[tgtMeta.iso];
+          if (direct) {
+            translationCache.set(cacheKey, direct);
+            return direct;
+          }
         }
       }
     }
 
-    const dict = WORD_MAP[targetLang];
-    if (dict) {
-      let out = clean;
-      for (const [k, v] of Object.entries(dict)) {
-        const rx = new RegExp(`\\b${k}\\b`, 'gi');
-        out = out.replace(rx, v);
+    // 2. Live Neural Translation via CORS-friendly endpoint (works for all 50 languages in user's browser)
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(srcMeta.iso)}&tl=${encodeURIComponent(tgtMeta.iso)}&dt=t&q=${encodeURIComponent(clean)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && Array.isArray(data[0])) {
+          const translated = data[0].map(part => part[0]).join('').trim();
+          if (translated) {
+            translationCache.set(cacheKey, translated);
+            return translated;
+          }
+        }
       }
-      if (out !== clean) return out;
-    }
+    } catch (_) {}
+
+    // 3. Secondary Fallback: MyMemory Neural API
+    try {
+      const pair = `${srcMeta.iso}|${tgtMeta.iso}`;
+      const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${encodeURIComponent(pair)}`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        if (data2 && data2.responseData && data2.responseData.translatedText) {
+          const out = data2.responseData.translatedText;
+          translationCache.set(cacheKey, out);
+          return out;
+        }
+      }
+    } catch (_) {}
 
     return clean;
   }
 
   // ==========================================================================
-  // 3. AVATAR SVG GENERATOR & CAMERA / UPLOAD CAPTURE
+  // 4. AVATAR SVG GENERATOR & INTERNATIONAL GUESTS POOL
   // ==========================================================================
   function generateSvgAvatarDataUrl(name, bgColor = '#10B981') {
     const initials = (name || 'U')
@@ -327,40 +430,17 @@
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
 
-  // Simulated Realistic Guests Pool (with photorealistic vector portrait avatars)
   const SIMULATED_GUESTS = [
-    {
-      id: 'guest-sarah',
-      name: 'Sarah Jenkins',
-      lang: 'en-US',
-      color: '#0EA5E9',
-      sampleText: 'Hello everyone, welcome to our Omnivox translation room!'
-    },
-    {
-      id: 'guest-mateo',
-      name: 'Mateo Rivera',
-      lang: 'es-ES',
-      color: '#F59E0B',
-      sampleText: 'Estoy escuchando la traducción perfectamente en mi idioma nativo.'
-    },
-    {
-      id: 'guest-claire',
-      name: 'Claire Dubois',
-      lang: 'fr-FR',
-      color: '#EC4899',
-      sampleText: "Super expérience, rejoint directement via le QR Code sans rien installer !"
-    },
-    {
-      id: 'guest-kenji',
-      name: 'Kenji Takahashi',
-      lang: 'ja-JP',
-      color: '#8B5CF6',
-      sampleText: 'プロジェクトの次のステップを今すぐ調整できます。'
-    }
+    { id: 'guest-sarah', name: 'Sarah Jenkins', lang: 'en-US', color: '#0EA5E9', sampleText: 'Hello everyone, welcome to our Omnivox translation room!' },
+    { id: 'guest-mateo', name: 'Mateo Rivera', lang: 'es-ES', color: '#F59E0B', sampleText: 'Estoy escuchando la traducción perfectamente en mi idioma nativo.' },
+    { id: 'guest-kenji', name: 'Kenji Takahashi', lang: 'ja-JP', color: '#8B5CF6', sampleText: 'プロジェクトの次のステップを今すぐ調整できます。' },
+    { id: 'guest-giulia', name: 'Giulia Conti', lang: 'it-IT', color: '#10B981', sampleText: 'Ottima esperienza, sono entrato direttamente tramite QR Code senza installare nulla!' },
+    { id: 'guest-wei', name: 'Wei Zhang', lang: 'zh-CN', color: '#EF4444', sampleText: '我能用母语非常清晰地听到翻译。' },
+    { id: 'guest-tariq', name: 'Tariq Al-Mansoor', lang: 'ar-SA', color: '#14B8A6', sampleText: 'مرحباً بالجميع، أهلاً بكم في غرفة الترجمة الفورية Omnivox!' }
   ];
 
   // ==========================================================================
-  // 4. APPLICATION STATE
+  // 5. APPLICATION STATE
   // ==========================================================================
   const state = {
     userId: 'u-' + Math.random().toString(36).slice(2, 9),
@@ -370,11 +450,16 @@
     nativeLang: 'pt-BR',
     avatarDataUrl: '',
     isJoiningFromQr: false,
+    inRoom: false,
 
     cameraStream: null,
     isCameraOpen: false,
 
-    participants: [], // [{ id, name, lang, avatar, speaking }]
+    activeRegionFilter: 'all',
+    searchQuery: '',
+    installedVoiceLangs: new Set(),
+
+    participants: [],
     activeSpeakerId: null,
     isHoldingPtt: false,
     speechRecognition: null,
@@ -382,16 +467,145 @@
     hostClauseCursor: 0,
     guestCursor: 0,
 
-    // iOS Audio & Sync
     audioCtx: null,
-    bc: typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('omnivox_live_room_v2') : null,
-    ws: null
+    bc: typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('omnivox_live_room_v2') : null
   };
 
   const $ = (id) => document.getElementById(id);
 
   // ==========================================================================
-  // 5. SPLASH SCREEN (4 SECONDS TRANSITION) & URL PARAM CHECK
+  // 6. DEVICE NATIVE VOICE DETECTOR & 50-LANGUAGE MODAL
+  // ==========================================================================
+  function refreshInstalledVoices() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = window.speechSynthesis.getVoices() || [];
+    voices.forEach(v => {
+      if (v.lang) {
+        state.installedVoiceLangs.add(v.lang.toLowerCase());
+        state.installedVoiceLangs.add(v.lang.split('-')[0].toLowerCase());
+      }
+    });
+  }
+
+  if ('speechSynthesis' in window) {
+    refreshInstalledVoices();
+    window.speechSynthesis.onvoiceschanged = refreshInstalledVoices;
+  }
+
+  function hasDeviceVoice(langObj) {
+    if (state.installedVoiceLangs.size === 0) return true; // Default optimistic before voices load
+    return (
+      state.installedVoiceLangs.has(langObj.code.toLowerCase()) ||
+      state.installedVoiceLangs.has(langObj.iso.toLowerCase())
+    );
+  }
+
+  function selectNativeLanguage(langCode) {
+    const meta = getLangMeta(langCode);
+    state.nativeLang = meta.code;
+
+    // Update indicator label on Setup screen
+    $('selected-lang-indicator').textContent = `${meta.flag} ${meta.nativeName}`;
+
+    // Highlight either one of the Top 5 buttons OR the 6th "Outros" slot!
+    document.querySelectorAll('.quick-lang-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.lang === meta.code);
+    });
+
+    const otherBtn = $('btn-other-languages');
+    if (!TOP_5_CODES.has(meta.code)) {
+      otherBtn.classList.add('selected');
+      $('other-btn-flag').textContent = meta.flag;
+      $('other-btn-name').textContent = meta.nativeName;
+      $('other-btn-sub').textContent = 'Trocar (50 idiomas)';
+    } else {
+      otherBtn.classList.remove('selected');
+      $('other-btn-flag').textContent = '🌍';
+      $('other-btn-name').textContent = 'Outros...';
+      $('other-btn-sub').textContent = '+45 idiomas';
+    }
+
+    // Update in-room pill & self participant card if already inside room
+    if ($('inroom-my-lang-label')) {
+      $('inroom-my-lang-label').textContent = `${meta.flag} ${meta.short}`;
+    }
+
+    if (state.inRoom) {
+      const me = state.participants.find(p => p.id === state.userId);
+      if (me) {
+        me.lang = meta.code;
+        renderRoomView();
+        if (state.bc) {
+          state.bc.postMessage({ type: 'participant_join', roomName: state.roomName, participant: me });
+        }
+      }
+    }
+  }
+
+  function renderLanguageCatalogModal() {
+    refreshInstalledVoices();
+    const listEl = $('lang-catalog-list');
+    const q = state.searchQuery.trim().toLowerCase();
+
+    const filtered = LANGUAGES_CATALOG.filter(item => {
+      if (state.activeRegionFilter !== 'all' && item.region !== state.activeRegionFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        item.nativeName.toLowerCase().includes(q) ||
+        item.ptName.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.short.toLowerCase().includes(q)
+      );
+    });
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `<div style="text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum idioma encontrado para "${escapeHtml(state.searchQuery)}"</div>`;
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(item => {
+      const isSelected = item.code === state.nativeLang;
+      const nativeVoice = hasDeviceVoice(item);
+      return `
+        <button type="button" class="catalog-lang-item ${isSelected ? 'active' : ''}" data-code="${item.code}">
+          <div class="catalog-lang-left">
+            <span class="lang-flag">${item.flag}</span>
+            <div class="catalog-lang-names">
+              <span class="catalog-lang-native">${escapeHtml(item.nativeName)}</span>
+              <span class="catalog-lang-pt">${escapeHtml(item.ptName)} • ${item.code}</span>
+            </div>
+          </div>
+          <span class="catalog-voice-badge ${nativeVoice ? '' : 'cloud'}">
+            ${nativeVoice ? '🔊 Voz HD' : '🌐 Voz + Legenda'}
+          </span>
+        </button>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.catalog-lang-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectNativeLanguage(btn.dataset.code);
+        closeLanguageCatalogModal();
+      });
+    });
+  }
+
+  function openLanguageCatalogModal() {
+    state.searchQuery = '';
+    $('input-search-lang').value = '';
+    renderLanguageCatalogModal();
+    $('lang-catalog-modal').classList.remove('hidden');
+    setTimeout(() => $('input-search-lang').focus(), 100);
+  }
+
+  function closeLanguageCatalogModal() {
+    $('lang-catalog-modal').classList.add('hidden');
+  }
+
+  // ==========================================================================
+  // 7. SPLASH SCREEN (4 SECONDS TRANSITION) & URL PARAM CHECK
   // ==========================================================================
   function initSplashAndUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -401,11 +615,10 @@
       state.isJoiningFromQr = true;
       $('input-room-name').value = state.roomName;
       $('setup-main-title').textContent = `Entrar em "${state.roomName}"`;
-      $('setup-subtitle').textContent = 'Você escaneou o QR Code! Escolha seu idioma e tire uma selfie para entrar.';
+      $('setup-subtitle').textContent = 'Você escaneou o QR Code! Escolha entre 50 idiomas e tire uma selfie para entrar.';
       $('btn-submit-label').textContent = 'Entrar na Sala Agora';
     }
 
-    // 4-second Splash Screen timer
     setTimeout(() => {
       const splash = $('splash-screen');
       splash.classList.add('fade-out');
@@ -417,7 +630,7 @@
   }
 
   // ==========================================================================
-  // 6. CAMERA SELFIE & PHOTO UPLOAD LOGIC
+  // 8. CAMERA SELFIE & PHOTO UPLOAD LOGIC
   // ==========================================================================
   async function handleCameraButton() {
     const video = $('camera-video');
@@ -425,7 +638,6 @@
     const placeholder = $('avatar-placeholder');
     const btn = $('btn-camera-selfie');
 
-    // If camera is already open -> Capture Photo!
     if (state.isCameraOpen && state.cameraStream) {
       const canvas = document.createElement('canvas');
       canvas.width = 240;
@@ -438,7 +650,6 @@
       const sx = (vw - minDim) / 2;
       const sy = (vh - minDim) / 2;
 
-      // Mirror horizontally for natural selfie
       ctx.translate(240, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 240, 240);
@@ -455,7 +666,6 @@
       return;
     }
 
-    // Otherwise, start live front camera stream
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -471,9 +681,7 @@
         btn.classList.add('capture-active');
         btn.innerHTML = '<span>📸 Capturar Rosto</span>';
         return;
-      } catch (_) {
-        // Fallback to native mobile camera file input if permission blocked
-      }
+      } catch (_) {}
     }
 
     $('input-file-camera-fallback').click();
@@ -518,7 +726,7 @@
   }
 
   // ==========================================================================
-  // 7. iOS SAFARI AUDIO UNLOCK (-70dB KEEP-ALIVE + WAKELOCK)
+  // 9. iOS SAFARI AUDIO UNLOCK (-70dB KEEP-ALIVE + WAKELOCK)
   // ==========================================================================
   async function unlockMobileAudio() {
     try {
@@ -528,7 +736,7 @@
         const osc = state.audioCtx.createOscillator();
         const gain = state.audioCtx.createGain();
         osc.frequency.value = 1.0;
-        gain.gain.value = 0.0003; // -70dB keep-alive for iOS Safari screen lock
+        gain.gain.value = 0.0003;
         osc.connect(gain);
         gain.connect(state.audioCtx.destination);
         osc.start();
@@ -562,7 +770,7 @@
   }
 
   // ==========================================================================
-  // 8. ROOM CREATION, QR CODE DISPLAY & AUTOMATIC SHRINK TO CORNER ON 1ST JOIN
+  // 10. ROOM CREATION, QR CODE DISPLAY & AUTOMATIC SHRINK TO CORNER ON 1ST JOIN
   // ==========================================================================
   function getShareableRoomUrl() {
     const base = `${window.location.origin}${window.location.pathname}`;
@@ -577,6 +785,7 @@
     state.userName = $('input-my-name').value.trim() || 'Anfitrião';
     state.roomName = $('input-room-name').value.trim() || 'Sala Omnivox';
     state.roomSlug = state.roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'OMNI26';
+    state.inRoom = true;
 
     if (!state.avatarDataUrl) {
       state.avatarDataUrl = generateSvgAvatarDataUrl(state.userName, '#10B981');
@@ -593,7 +802,6 @@
 
     state.participants = [me];
 
-    // Render Real Scannable ISO 18004 QR Code (Large + Corner Mini + Modal)
     const shareUrl = getShareableRoomUrl();
     const largeSvg = QrCodeGen.encodeTextToSvg(shareUrl, 188);
     const miniSvg = QrCodeGen.encodeTextToSvg(shareUrl, 30);
@@ -607,16 +815,16 @@
     $('modal-room-title').textContent = state.roomName;
     $('qr-code-slug').textContent = `#${state.roomSlug}`;
     $('corner-room-code').textContent = `#${state.roomSlug}`;
-    const langInfo = LANG_META[state.nativeLang] || LANG_META['pt-BR'];
-    $('qr-host-summary').textContent = `${state.userName} (${langInfo.flag} ${langInfo.name})`;
+
+    const langInfo = getLangMeta(state.nativeLang);
+    $('qr-host-summary').textContent = `${state.userName} (${langInfo.flag} ${langInfo.nativeName})`;
+    $('inroom-my-lang-label').textContent = `${langInfo.flag} ${langInfo.short}`;
 
     $('setup-screen').classList.add('hidden');
     $('room-screen').classList.remove('hidden');
 
-    // Connect realtime sync across tabs/devices
     initRealtimeSync(me);
 
-    // If user entered by scanning someone else's QR Code (?room=...), add the Host so they immediately see the active room with shrunk QR!
     if (state.isJoiningFromQr) {
       addOrUpdateParticipant({
         id: 'host-creator',
@@ -641,9 +849,6 @@
     renderRoomView();
   }
 
-  // Core UI State Machine:
-  // - When only 1 participant (Host alone): Show Large QR Hero Card in center.
-  // - As soon as >= 2 participants: Shrink QR Code to top-right corner button (#btn-corner-qr) and focus on Participants Grid!
   function renderRoomView() {
     const count = state.participants.length;
     const qrHero = $('qr-hero-card');
@@ -660,10 +865,9 @@
       cornerQrBtn.classList.remove('hidden');
     }
 
-    // Render Participant Cards with Photo Avatars & Native Languages
     const grid = $('participants-grid');
     grid.innerHTML = state.participants.map(p => {
-      const lMeta = LANG_META[p.lang] || LANG_META['pt-BR'];
+      const lMeta = getLangMeta(p.lang);
       const isSpeaking = state.activeSpeakerId === p.id;
       return `
         <div class="participant-card ${isSpeaking ? 'speaking' : ''}" id="pcard-${p.id}">
@@ -672,7 +876,7 @@
             <span class="participant-lang-badge">${lMeta.flag} ${lMeta.short}</span>
           </div>
           <div class="participant-name">${escapeHtml(p.name)}${p.isMe ? ' (Você)' : ''}</div>
-          <div class="participant-lang-name">${lMeta.name}</div>
+          <div class="participant-lang-name">${escapeHtml(lMeta.nativeName)}</div>
           <div class="participant-status-tag">
             ${isSpeaking ? '🎙️ Falando agora...' : '🎧 Ouvindo em ' + lMeta.short}
           </div>
@@ -682,7 +886,7 @@
   }
 
   // ==========================================================================
-  // 9. REALTIME MULTI-TAB / SERVER SYNC & GUEST SIMULATOR
+  // 11. REALTIME MULTI-TAB SYNC & GUEST SIMULATOR
   // ==========================================================================
   function initRealtimeSync(me) {
     if (state.bc) {
@@ -693,7 +897,6 @@
 
         if (data.type === 'participant_join') {
           addOrUpdateParticipant({ ...data.participant, isMe: false });
-          // Announce ourselves back so the newly joined tab sees us too!
           state.bc.postMessage({ type: 'participant_ack', roomName: state.roomName, participant: me });
         } else if (data.type === 'participant_ack') {
           addOrUpdateParticipant({ ...data.participant, isMe: false });
@@ -730,7 +933,7 @@
   }
 
   // ==========================================================================
-  // 10. FIXED BOTTOM PUSH-TO-TALK & VOICE SYNTHESIS
+  // 12. FIXED BOTTOM PUSH-TO-TALK & VOICE SYNTHESIS across 50 LANGUAGES
   // ==========================================================================
   function startPushToTalk() {
     if (state.isHoldingPtt) return;
@@ -748,7 +951,8 @@
     const btn = $('btn-fixed-ptt');
     btn.classList.add('active-speaking');
     $('ptt-main-label').textContent = 'GRAVANDO E TRADUZINDO... (SOLTE PARA ENVIAR)';
-    $('ptt-sub-label').textContent = 'Fale normalmente no seu idioma nativo';
+    const myMeta = getLangMeta(state.nativeLang);
+    $('ptt-sub-label').textContent = `Ouvindo você em ${myMeta.flag} ${myMeta.nativeName}...`;
 
     renderRoomView();
     if (state.bc) {
@@ -779,7 +983,7 @@
     }
   }
 
-  function stopPushToTalk() {
+  async function stopPushToTalk() {
     if (!state.isHoldingPtt) return;
     state.isHoldingPtt = false;
     state.activeSpeakerId = null;
@@ -800,13 +1004,12 @@
       state.bc.postMessage({ type: 'speaking_state', roomName: state.roomName, speakerId: state.userId, speaking: false });
     }
 
-    // Use captured microphone speech, or fallback to a natural phrase in the user's native language
     let finalSpeech = state.spokenTranscript.trim();
     if (!finalSpeech) {
-      const short = state.nativeLang.split('-')[0].toLowerCase();
+      const myMeta = getLangMeta(state.nativeLang);
       const item = CONVERSATION_CORPUS[state.hostClauseCursor % CONVERSATION_CORPUS.length];
       state.hostClauseCursor += 1;
-      finalSpeech = item[short] || item.pt;
+      finalSpeech = item[myMeta.code] || item[myMeta.iso] || item.pt;
     }
 
     const me = state.participants.find(p => p.id === state.userId);
@@ -819,32 +1022,31 @@
       originalText: finalSpeech
     };
 
-    receiveSpeechClause(payload);
+    await receiveSpeechClause(payload);
     if (state.bc) {
       state.bc.postMessage({ type: 'speech_clause', roomName: state.roomName, payload });
     }
   }
 
-  function receiveSpeechClause(payload) {
+  async function receiveSpeechClause(payload) {
     const emptyHint = $('feed-empty-hint');
     if (emptyHint) emptyHint.remove();
 
-    // If only 1 language is in room and user spoke themselves, show preview in another participant's language or English so user sees & hears the translation magic!
     let targetLang = state.nativeLang;
     if (payload.speakerId === state.userId) {
       const otherGuest = state.participants.find(p => !p.isMe && p.lang !== state.nativeLang);
       if (otherGuest) {
         targetLang = otherGuest.lang;
-      } else if (state.nativeLang === 'pt-BR') {
+      } else if (state.nativeLang.startsWith('pt')) {
         targetLang = 'en-US';
       } else {
         targetLang = 'pt-BR';
       }
     }
 
-    const translatedText = translateText(payload.originalText, payload.sourceLang, targetLang);
-    const srcMeta = LANG_META[payload.sourceLang] || LANG_META['pt-BR'];
-    const tgtMeta = LANG_META[targetLang] || LANG_META['en-US'];
+    const translatedText = await translateUniversalAsync(payload.originalText, payload.sourceLang, targetLang);
+    const srcMeta = getLangMeta(payload.sourceLang);
+    const tgtMeta = getLangMeta(targetLang);
 
     const feed = $('conversation-feed');
     const card = document.createElement('div');
@@ -854,7 +1056,7 @@
       <div class="speech-card-body">
         <div class="speech-card-meta">
           <strong>${escapeHtml(payload.speakerName)} (${srcMeta.flag} ${srcMeta.short})</strong>
-          <span>→ ${tgtMeta.flag} ${tgtMeta.name}</span>
+          <span>→ ${tgtMeta.flag} ${escapeHtml(tgtMeta.nativeName)}</span>
         </div>
         <div class="speech-card-translated">${escapeHtml(translatedText)}</div>
         <div class="speech-card-original">Original: "${escapeHtml(payload.originalText)}"</div>
@@ -862,7 +1064,7 @@
     `;
     feed.prepend(card);
 
-    speakTts(translatedText, targetLang);
+    speakTts(translatedText, tgtMeta.code);
   }
 
   function speakTts(text, langCode) {
@@ -871,18 +1073,18 @@
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = langCode;
-      utter.rate = 1.04;
+      utter.rate = 1.03;
       const voices = window.speechSynthesis.getVoices();
+      const exact = voices.find(v => v.lang.toLowerCase() === langCode.toLowerCase());
       const prefix = langCode.split('-')[0].toLowerCase();
-      const matched = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
-      if (matched) utter.voice = matched;
+      const fallbackVoice = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
+      if (exact || fallbackVoice) utter.voice = exact || fallbackVoice;
       window.speechSynthesis.speak(utter);
     } catch (_) {}
   }
 
   function simulateForeignParticipantSpeech() {
     unlockMobileAudio();
-    // Ensure at least 1 foreign guest is in the room
     let guest = state.participants.find(p => !p.isMe);
     if (!guest) {
       simulateNextParticipantJoin();
@@ -893,9 +1095,9 @@
     state.activeSpeakerId = guest.id;
     renderRoomView();
 
-    const short = guest.lang.split('-')[0].toLowerCase();
+    const gMeta = getLangMeta(guest.lang);
     const corpusItem = CONVERSATION_CORPUS[Math.floor(Math.random() * CONVERSATION_CORPUS.length)];
-    const spokenText = corpusItem[short] || guest.sampleText || corpusItem.en;
+    const spokenText = corpusItem[gMeta.code] || corpusItem[gMeta.iso] || guest.sampleText || corpusItem.en;
 
     setTimeout(() => {
       state.activeSpeakerId = null;
@@ -908,25 +1110,45 @@
         sourceLang: guest.lang,
         originalText: spokenText
       });
-    }, 1100);
+    }, 1050);
   }
 
   // ==========================================================================
-  // 11. EVENT BINDINGS
+  // 13. EVENT BINDINGS
   // ==========================================================================
   function bindEvents() {
-    // Camera & Photo Upload
     $('btn-camera-selfie').addEventListener('click', handleCameraButton);
     $('btn-upload-photo').addEventListener('click', () => $('input-file-photo').click());
     $('input-file-photo').addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
     $('input-file-camera-fallback').addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
 
-    // Native Language Selection Buttons
-    document.querySelectorAll('.lang-option-btn').forEach(btn => {
+    // Top 5 Quick Language Buttons
+    document.querySelectorAll('.quick-lang-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.lang-option-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        state.nativeLang = btn.dataset.lang;
+        selectNativeLanguage(btn.dataset.lang);
+      });
+    });
+
+    // "Outros (+45 idiomas)" Button & In-room Language Switcher
+    $('btn-other-languages').addEventListener('click', openLanguageCatalogModal);
+    $('btn-inroom-lang-switch').addEventListener('click', openLanguageCatalogModal);
+    $('btn-close-lang-modal').addEventListener('click', closeLanguageCatalogModal);
+    $('lang-catalog-modal').addEventListener('click', (e) => {
+      if (e.target === $('lang-catalog-modal')) closeLanguageCatalogModal();
+    });
+
+    // Search Input & Region Tabs inside 50-Language Modal
+    $('input-search-lang').addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      renderLanguageCatalogModal();
+    });
+
+    document.querySelectorAll('.region-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.region-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        state.activeRegionFilter = tab.dataset.region;
+        renderLanguageCatalogModal();
       });
     });
 
@@ -964,7 +1186,7 @@
       setTimeout(() => { $('lbl-copy-link').textContent = '🔗 Copiar Link'; }, 1800);
     });
 
-    // Simulate Participant Joining (Triggers QR Code Shrink to Corner!)
+    // Simulate Participant Joining
     $('btn-simulate-first-guest').addEventListener('click', simulateNextParticipantJoin);
     $('btn-add-simulated-guest').addEventListener('click', simulateNextParticipantJoin);
     $('btn-sim-guest-speak').addEventListener('click', simulateForeignParticipantSpeech);
@@ -980,7 +1202,7 @@
       if (e.target === $('qr-modal')) $('qr-modal').classList.add('hidden');
     });
 
-    // Fixed Bottom Push-to-Talk Button (Touch + Mouse + Spacebar)
+    // Fixed Bottom Push-to-Talk Button
     const pttBtn = $('btn-fixed-ptt');
     pttBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();

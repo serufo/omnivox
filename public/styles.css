@@ -346,6 +346,9 @@ button, input, select {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .field-input {
@@ -365,7 +368,7 @@ button, input, select {
   border-color: var(--accent-emerald);
 }
 
-/* Native Language Grid */
+/* Native Language Grid + "Outros (50+ Idiomas)" Button */
 .lang-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -395,24 +398,44 @@ button, input, select {
   box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
 }
 
+.lang-option-btn.other-btn {
+  border-style: dashed;
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.lang-option-btn.other-btn.selected {
+  border-style: solid;
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.12);
+}
+
 .lang-flag {
   font-size: 1.35rem;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .lang-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .lang-name {
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lang-sub {
-  font-size: 0.69rem;
+  font-size: 0.68rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .btn-create-room {
@@ -442,17 +465,208 @@ button, input, select {
 }
 
 /* ============================================================================
+   50-LANGUAGE SEARCHABLE MODAL ("OUTROS IDIOMAS")
+   ============================================================================ */
+.lang-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(7, 11, 16, 0.86);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+@media (min-width: 560px) {
+  .lang-modal-backdrop {
+    align-items: center;
+    padding: 1.25rem;
+  }
+}
+
+.lang-modal-sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 86dvh;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 26px 26px 0 0;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+  animation: sheetSlideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 560px) {
+  .lang-modal-sheet {
+    border-radius: 24px;
+    max-height: 80dvh;
+  }
+}
+
+@keyframes sheetSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.lang-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lang-modal-header h3 {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.lang-search-wrap {
+  position: relative;
+}
+
+.lang-search-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.72rem 0.95rem 0.72rem 2.35rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.lang-search-input:focus {
+  outline: none;
+  border-color: var(--accent-emerald);
+}
+
+.lang-search-icon {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.region-tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scrollbar-width: none;
+}
+
+.region-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.region-tab {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 0.38rem 0.75rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.region-tab.active {
+  background: var(--accent-emerald);
+  color: #04130D;
+  border-color: var(--accent-emerald);
+}
+
+.lang-catalog-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-right: 0.2rem;
+}
+
+.catalog-lang-item {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.68rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.catalog-lang-item:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+.catalog-lang-item.active {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.catalog-lang-left {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.catalog-lang-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.catalog-lang-native {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.catalog-lang-pt {
+  font-size: 0.73rem;
+  color: var(--text-secondary);
+}
+
+.catalog-voice-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.18rem 0.48rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--accent-emerald);
+}
+
+.catalog-voice-badge.cloud {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+}
+
+/* ============================================================================
    3. ACTIVE ROOM SCREEN (QR SHARE -> CORNER SHRINK -> PARTICIPANTS -> FIXED PTT)
    ============================================================================ */
 .room-screen {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  padding-bottom: 148px; /* Space for fixed bottom PTT dock */
+  padding-bottom: 148px;
   animation: screenFadeIn 0.35s ease-out;
 }
 
-/* Top Room Header with Corner Mini-QR Slot */
 .room-topbar {
   position: sticky;
   top: 0;
@@ -500,7 +714,6 @@ button, input, select {
   text-overflow: ellipsis;
 }
 
-/* Corner Mini QR Button (Appears when >= 2 participants are in room!) */
 .corner-qr-trigger {
   background: var(--bg-surface);
   border: 1.5px solid var(--border-strong);
@@ -528,11 +741,6 @@ button, input, select {
   place-items: center;
 }
 
-.corner-qr-Mini-svg svg {
-  width: 100%;
-  height: 100%;
-}
-
 .corner-qr-label {
   display: flex;
   flex-direction: column;
@@ -551,7 +759,6 @@ button, input, select {
   color: var(--accent-amber);
 }
 
-/* Stage 3A: Full QR Code Onboarding Hero (Shown while waiting for 1st participant) */
 .qr-hero-section {
   margin: 1.25rem;
   background: var(--bg-surface);
@@ -662,7 +869,6 @@ button, input, select {
   color: var(--text-muted);
 }
 
-/* Stage 3B: Participants Grid & Live Translation Bubbles */
 .participants-stage {
   padding: 1rem 1.15rem;
   display: flex;
@@ -772,7 +978,6 @@ button, input, select {
   color: #04130D;
 }
 
-/* Live Conversation Translation Stream */
 .conversation-feed {
   display: flex;
   flex-direction: column;
@@ -876,11 +1081,6 @@ button, input, select {
   box-shadow: 0 0 32px var(--accent-crimson-glow);
 }
 
-.ptt-hold-btn.queued {
-  background: linear-gradient(180deg, #D97706 0%, #92400E 100%);
-  border-color: #FBBF24;
-}
-
 .ptt-btn-main {
   font-size: 1rem;
   font-weight: 800;
@@ -895,12 +1095,10 @@ button, input, select {
   color: var(--text-secondary);
 }
 
-.ptt-hold-btn.active-speaking .ptt-btn-sub,
-.ptt-hold-btn.queued .ptt-btn-sub {
+.ptt-hold-btn.active-speaking .ptt-btn-sub {
   color: rgba(255, 255, 255, 0.9);
 }
 
-/* Modal for Expanded QR Code when clicked from Corner */
 .qr-modal-backdrop {
   position: fixed;
   inset: 0;

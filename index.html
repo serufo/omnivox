@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Omnivox — Tradução Simultânea em Tempo Real</title>
-  <meta name="description" content="Crie uma sala, compartilhe o QR Code e converse cada um no seu idioma nativo com tradução simultânea instantânea." />
+  <meta name="description" content="Crie uma sala, compartilhe o QR Code e converse em 50 idiomas com tradução simultânea instantânea." />
   <meta name="theme-color" content="#070B10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -36,7 +36,7 @@
     </div>
 
     <div class="splash-title">OMNIVOX</div>
-    <p class="splash-subtitle">Tradução simultânea multidirecional no seu navegador</p>
+    <p class="splash-subtitle">Tradução simultânea multidirecional em 50 idiomas</p>
 
     <div class="splash-progress-track" aria-hidden="true">
       <div class="splash-progress-fill"></div>
@@ -54,7 +54,7 @@
       <header class="setup-header">
         <div class="setup-brand-pill">
           <span class="live-dot"></span>
-          <span>OMNIVOX • SEM INSTALAÇÃO</span>
+          <span>OMNIVOX • 50 IDIOMAS DISPONÍVEIS</span>
         </div>
         <h1 id="setup-main-title">Criar Nova Sala</h1>
         <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
@@ -99,50 +99,60 @@
           <input id="input-room-name" class="field-input" type="text" placeholder="Ex: Reunião Global, Mesa 04..." required />
         </div>
 
-        <!-- SELEÇÃO DO IDIOMA NATIVO -->
+        <!-- SELEÇÃO DO IDIOMA NATIVO (TOP 5 + BOTÃO OUTROS COM 50 IDIOMAS) -->
         <div class="field-group">
-          <span class="field-label">Meu Idioma Nativo (Fala e Escuta)</span>
+          <div class="field-label">
+            <span>Meu Idioma Nativo</span>
+            <span id="selected-lang-indicator" style="color: var(--accent-emerald); font-size: 0.72rem;">🇧🇷 Português (Brasil)</span>
+          </div>
+
           <div id="lang-selector-grid" class="lang-grid" role="radiogroup" aria-label="Idioma nativo">
-            <button type="button" class="lang-option-btn selected" data-lang="pt-BR">
+            <button type="button" class="lang-option-btn quick-lang-btn selected" data-lang="pt-BR">
               <span class="lang-flag">🇧🇷</span>
               <span class="lang-info">
                 <span class="lang-name">Português</span>
                 <span class="lang-sub">Brasil</span>
               </span>
             </button>
-            <button type="button" class="lang-option-btn" data-lang="en-US">
+
+            <button type="button" class="lang-option-btn quick-lang-btn" data-lang="en-US">
               <span class="lang-flag">🇺🇸</span>
               <span class="lang-info">
                 <span class="lang-name">English</span>
                 <span class="lang-sub">United States</span>
               </span>
             </button>
-            <button type="button" class="lang-option-btn" data-lang="es-ES">
+
+            <button type="button" class="lang-option-btn quick-lang-btn" data-lang="es-ES">
               <span class="lang-flag">🇪🇸</span>
               <span class="lang-info">
                 <span class="lang-name">Español</span>
                 <span class="lang-sub">España / LatAm</span>
               </span>
             </button>
-            <button type="button" class="lang-option-btn" data-lang="fr-FR">
+
+            <button type="button" class="lang-option-btn quick-lang-btn" data-lang="fr-FR">
               <span class="lang-flag">🇫🇷</span>
               <span class="lang-info">
                 <span class="lang-name">Français</span>
                 <span class="lang-sub">France</span>
               </span>
             </button>
-            <button type="button" class="lang-option-btn" data-lang="de-DE">
+
+            <button type="button" class="lang-option-btn quick-lang-btn" data-lang="de-DE">
               <span class="lang-flag">🇩🇪</span>
               <span class="lang-info">
                 <span class="lang-name">Deutsch</span>
                 <span class="lang-sub">Deutschland</span>
               </span>
             </button>
-            <button type="button" class="lang-option-btn" data-lang="ja-JP">
-              <span class="lang-flag">🇯🇵</span>
+
+            <!-- BOTÃO "OUTROS" (ABRE O CATÁLOGO DE 50 IDIOMAS) -->
+            <button type="button" id="btn-other-languages" class="lang-option-btn other-btn">
+              <span id="other-btn-flag" class="lang-flag">🌍</span>
               <span class="lang-info">
-                <span class="lang-name">日本語</span>
-                <span class="lang-sub">日本</span>
+                <span id="other-btn-name" class="lang-name">Outros...</span>
+                <span id="other-btn-sub" class="lang-sub">+45 idiomas</span>
               </span>
             </button>
           </div>
@@ -172,14 +182,21 @@
           <h2 id="room-header-title" class="room-name-heading">Sala Omnivox</h2>
         </div>
 
-        <!-- CORNER MINI QR CODE (Hidden while large QR hero is shown; appears when 1st person enters!) -->
-        <button type="button" id="btn-corner-qr" class="corner-qr-trigger hidden" title="Toque para ampliar o QR Code da sala">
-          <div id="corner-qr-svg" class="corner-qr-mini-box"></div>
-          <div class="corner-qr-label">
-            <span>QR da Sala</span>
-            <span id="corner-room-code">Ampliar</span>
-          </div>
-        </button>
+        <div style="display: flex; align-items: center; gap: 0.45rem;">
+          <!-- IN-ROOM LANGUAGE SWITCHER PILL -->
+          <button type="button" id="btn-inroom-lang-switch" class="btn-chip" style="padding: 0.35rem 0.65rem; font-size: 0.72rem;" title="Trocar meu idioma de escuta/fala">
+            <span id="inroom-my-lang-label">🇧🇷 PT</span>
+          </button>
+
+          <!-- CORNER MINI QR CODE (Hidden while large QR hero is shown; appears when 1st person enters!) -->
+          <button type="button" id="btn-corner-qr" class="corner-qr-trigger hidden" title="Toque para ampliar o QR Code da sala">
+            <div id="corner-qr-svg" class="corner-qr-mini-box"></div>
+            <div class="corner-qr-label">
+              <span>QR Sala</span>
+              <span id="corner-room-code">Ampliar</span>
+            </div>
+          </button>
+        </div>
       </header>
 
       <!-- STATE A: LARGE QR CODE SHARE CARD (Visible right after creating room until 1st person joins) -->
@@ -264,7 +281,41 @@
     </section>
   </main>
 
-  <!-- EXPANDED QR CODE MODAL (When tapping the shrunk QR code in the top-right corner) -->
+  <!-- ======================================================================
+       MODAL 1: 50-LANGUAGE SEARCHABLE SELECTOR ("OUTROS IDIOMAS")
+       ====================================================================== -->
+  <div id="lang-catalog-modal" class="lang-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lang-modal-title">
+    <div class="lang-modal-sheet">
+      <div class="lang-modal-header">
+        <div>
+          <h3 id="lang-modal-title">Selecionar Idioma (50 disponíveis)</h3>
+          <p style="font-size: 0.74rem; color: var(--text-secondary);">Reconhecimento de voz + tradução neural + síntese de áudio</p>
+        </div>
+        <button type="button" id="btn-close-lang-modal" class="btn-chip" style="padding: 0.32rem 0.7rem;">Fechar ✕</button>
+      </div>
+
+      <div class="lang-search-wrap">
+        <svg class="lang-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input id="input-search-lang" class="lang-search-input" type="search" placeholder="Buscar idioma, país ou código (ex: Italiano, Japonês, Árabe)..." autocomplete="off" />
+      </div>
+
+      <div class="region-tabs" role="tablist">
+        <button type="button" class="region-tab active" data-region="all">Todos (50)</button>
+        <button type="button" class="region-tab" data-region="americas_europe">Américas &amp; Europa</button>
+        <button type="button" class="region-tab" data-region="asia_pacific">Ásia &amp; Oceania</button>
+        <button type="button" class="region-tab" data-region="mea">Oriente Médio &amp; África</button>
+      </div>
+
+      <div id="lang-catalog-list" class="lang-catalog-list"></div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       MODAL 2: EXPANDED QR CODE (When tapping the shrunk QR code in the corner)
+       ====================================================================== -->
   <div id="qr-modal" class="qr-modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="QR Code da Sala">
     <div class="qr-modal-card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
