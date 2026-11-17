@@ -2,428 +2,284 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Omnivox — Tradução Simultânea Multidirecional via QR Code &amp; Push-to-Talk</title>
-  <meta name="description" content="Progressive Web App de tradução simultânea multidirecional em tempo real com onboarding via QR Code, controle de fila Push-to-Talk e síntese de voz instantânea." />
-  <meta name="theme-color" content="#0A0E13" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Omnivox — Tradução Simultânea em Tempo Real</title>
+  <meta name="description" content="Crie uma sala, compartilhe o QR Code e converse cada um no seu idioma nativo com tradução simultânea instantânea." />
+  <meta name="theme-color" content="#070B10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- TOP TELEMETRY & STATUS BAR -->
-  <header class="topbar" role="banner">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" x2="12" y1="19" y2="22"/>
-        </svg>
-      </div>
-      <div class="brand-title">
-        <span>OMNIVOX</span>
-        <span class="brand-tag" id="header-room-tier-badge">PWA v1.0</span>
-      </div>
-    </div>
-
-    <div class="telemetry-pills" aria-label="Telemetria do Dispositivo">
-      <div class="sys-pill" id="pill-ws-status" title="Conexão WebSocket Tempo Real">
-        <span class="dot"></span>
-        <span id="pill-ws-text">WS: Standby</span>
-      </div>
-      <div class="sys-pill" id="pill-ios-audio" title="Desbloqueio de AudioContext + Keep-Alive -70dB para iOS Safari">
-        <span class="dot"></span>
-        <span id="pill-ios-text">iOS Audio: Locked</span>
-      </div>
-      <div class="sys-pill" id="pill-wakelock" title="Screen Wake Lock API + MediaSession">
-        <span class="dot"></span>
-        <span id="pill-wakelock-text">WakeLock: Off</span>
-      </div>
-      <div class="sys-pill ok" id="pill-playback-rate" title="Velocidade da Fila FIFO de Áudio">
-        <span class="dot"></span>
-        <span id="pill-rate-text">FIFO: 1.00x</span>
+  <!-- ======================================================================
+       1. SPLASH SCREEN (4 SECONDS ANIMATED LOGO)
+       ====================================================================== -->
+  <section id="splash-screen" class="splash-screen" aria-label="Tela de abertura Omnivox">
+    <div class="splash-logo-stage" aria-hidden="true">
+      <div class="splash-ring ring-1"></div>
+      <div class="splash-ring ring-2"></div>
+      <div class="splash-ring ring-3"></div>
+      <div class="splash-core">
+        <div class="splash-wave-bars">
+          <span class="splash-bar"></span>
+          <span class="splash-bar"></span>
+          <span class="splash-bar"></span>
+          <span class="splash-bar"></span>
+          <span class="splash-bar"></span>
+        </div>
       </div>
     </div>
-  </header>
 
-  <!-- IOS / SAFARI AUDIO INTERRUPTED RECOVERY BANNER -->
-  <div id="ios-interrupted-banner" class="ios-banner hidden" role="alert">
-    <span><strong>Sessão de Áudio Suspensa pelo iOS/Safari:</strong> O sistema operacional pausou o canal de áudio em segundo plano.</span>
-    <button id="btn-restore-ios-audio" type="button">Toque para Restaurar Áudio</button>
-  </div>
+    <div class="splash-title">OMNIVOX</div>
+    <p class="splash-subtitle">Tradução simultânea multidirecional no seu navegador</p>
 
-  <main class="main-container">
+    <div class="splash-progress-track" aria-hidden="true">
+      <div class="splash-progress-fill"></div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       MAIN APP SHELL
+       ====================================================================== -->
+  <main class="app-shell">
     <!-- ====================================================================
-         VIEW 1: ONBOARDING / ROOM CREATION & QR JOIN
+         2. SETUP SCREEN: AVATAR (CAMERA/PHOTO) + MEU NOME + NOME DA SALA + IDIOMA
          ==================================================================== -->
-    <section id="view-onboarding" class="onboarding-grid" aria-labelledby="onboarding-heading">
-      <div class="panel">
-        <div class="panel-header">
-          <h1 id="onboarding-heading">Entrar ou Criar Sala de Tradução</h1>
-          <p>Zero instalação, zero cadastro. Ao tocar em entrar, o Omnivox destrava o motor de áudio para segundo plano e conecta você ao canal multidirecional.</p>
+    <section id="setup-screen" class="setup-screen hidden" aria-labelledby="setup-main-title">
+      <header class="setup-header">
+        <div class="setup-brand-pill">
+          <span class="live-dot"></span>
+          <span>OMNIVOX • SEM INSTALAÇÃO</span>
+        </div>
+        <h1 id="setup-main-title">Criar Nova Sala</h1>
+        <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
+      </header>
+
+      <form id="form-setup-room" class="setup-card">
+        <!-- AVATAR CAPTURE (SELFIE CAMERA OR PHOTO UPLOAD) -->
+        <div class="avatar-picker-section">
+          <div id="avatar-preview-box" class="avatar-preview-ring">
+            <video id="camera-video" class="hidden" autoplay playsinline muted></video>
+            <img id="avatar-img" class="hidden" alt="Seu avatar" />
+            <div id="avatar-placeholder" class="avatar-placeholder-icon">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                <circle cx="12" cy="13" r="3"/>
+              </svg>
+              <span>Sua Foto</span>
+            </div>
+          </div>
+
+          <div class="avatar-actions">
+            <button type="button" id="btn-camera-selfie" class="btn-chip">
+              <span>📷 Câmera</span>
+            </button>
+            <button type="button" id="btn-upload-photo" class="btn-chip">
+              <span>🖼️ Enviar Foto</span>
+            </button>
+            <input id="input-file-photo" type="file" accept="image/*" class="hidden" />
+            <input id="input-file-camera-fallback" type="file" accept="image/*" capture="user" class="hidden" />
+          </div>
         </div>
 
-        <form id="form-join-room">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="input-user-name">Seu Nome / Apelido</label>
-              <input id="input-user-name" class="form-input" type="text" placeholder="Ex: Carlos (Host)" value="Carlos (Anfitrião)" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="input-room-code">Código da Sala (QR)</label>
-              <input id="input-room-code" class="form-input" type="text" value="OMNI-2026" required style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-amber);" />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="select-native-lang">Seu Idioma Nativo (Fala &amp; Escuta)</label>
-            <select id="select-native-lang" class="form-select">
-              <option value="pt-BR">🇧🇷 Português (Brasil) — Ouvir e Falar em Português</option>
-              <option value="en-US">🇺🇸 English (US) — Listen &amp; Speak in English</option>
-              <option value="es-ES">🇪🇸 Español — Escuchar y Hablar en Español</option>
-              <option value="fr-FR">🇫🇷 Français — Écouter et Parler en Français</option>
-              <option value="de-DE">🇩🇪 Deutsch — Hören und Sprechen auf Deutsch</option>
-              <option value="ja-JP">🇯🇵 日本語 — 日本語で聞く・話す</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <span class="form-label">Modo Acústico no Ambiente Físico</span>
-            <div class="mode-selector">
-              <button type="button" id="btn-mode-headphones" class="mode-option active" data-mode="headphones">
-                <div class="mode-option-title">
-                  <span>🎧 Estou de Fone</span>
-                  <span class="arch-badge">Fast 120ms</span>
-                </div>
-                <div class="mode-option-desc">Transição imediata de microfone sem risco de eco na mesa.</div>
-              </button>
-              <button type="button" id="btn-mode-speaker" class="mode-option" data-mode="speaker">
-                <div class="mode-option-title">
-                  <span>🔊 Alto-Falante na Mesa</span>
-                  <span class="arch-badge" style="color: var(--accent-amber); background: var(--accent-amber-dim);">Gate 650ms</span>
-                </div>
-                <div class="mode-option-desc">Ativa Cooldown Acústico de 650ms na sala para evitar loop de eco.</div>
-              </button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <span class="form-label">Plano da Sala (Modelo Host-Pays)</span>
-            <div class="mode-selector">
-              <button type="button" id="btn-tier-trial" class="mode-option active" data-tier="trial">
-                <div class="mode-option-title">
-                  <span>⚡ Trial Gratuito (5 min)</span>
-                  <span class="arch-badge">$0 TTS Cloud</span>
-                </div>
-                <div class="mode-option-desc">Usa TTS nativo do celular para zerar queima de caixa no freemium.</div>
-              </button>
-              <button type="button" id="btn-tier-pro" class="mode-option" data-tier="pro">
-                <div class="mode-option-title">
-                  <span>💎 Passe Evento Pro</span>
-                  <span class="arch-badge" style="color: var(--accent-amber); background: var(--accent-amber-dim);">R$ 19,90 / 2h</span>
-                </div>
-                <div class="mode-option-desc">Vozes neurais HD em baixa latência + Fan-out ilimitado por idioma.</div>
-              </button>
-            </div>
-          </div>
-
-          <button id="btn-enter-room" type="submit" class="btn-primary">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <span>Destravar Áudio iOS &amp; Entrar na Sala</span>
-          </button>
-        </form>
-      </div>
-
-      <!-- ARCHITECTURE HIGHLIGHTS VALIDATED IN GRILL-ME -->
-      <aside class="panel">
-        <div class="panel-header">
-          <h2 style="font-size: 1.15rem; font-weight: 700;">Arquitetura Validada (Sabatina Angel Investor)</h2>
-          <p>Todos os 5 pilares técnicos decididos na sabatina estão ativos e instrumentados neste protótipo:</p>
+        <!-- MEU NOME -->
+        <div class="field-group">
+          <label class="field-label" for="input-my-name">Meu Nome</label>
+          <input id="input-my-name" class="field-input" type="text" placeholder="Como os outros verão você" required autocomplete="name" />
         </div>
 
-        <div class="arch-checklist">
-          <div class="arch-item">
-            <div class="arch-item-head">
-              <span>1. Blindagem Safari/iOS em Background</span>
-              <span class="arch-badge">-70dB + WakeLock</span>
-            </div>
-            <p>Unlock de <code>AudioContext</code> no clique de entrada + oscilador sub-audível contínuo + registro na <code>MediaSession API</code> e detector de estado <code>interrupted</code>.</p>
-          </div>
+        <!-- NOME DA SALA -->
+        <div class="field-group">
+          <label class="field-label" for="input-room-name">Nome da Sala</label>
+          <input id="input-room-name" class="field-input" type="text" placeholder="Ex: Reunião Global, Mesa 04..." required />
+        </div>
 
-          <div class="arch-item">
-            <div class="arch-item-head">
-              <span>2. Streaming por Cláusulas Semânticas</span>
-              <span class="arch-badge">Sub-1s TTFB</span>
-            </div>
-            <p>Não espera soltar o Push-to-Talk em falas longas: fatiamento incremental por pausa/pontuação com janela deslizante de contexto da frase anterior.</p>
-          </div>
-
-          <div class="arch-item">
-            <div class="arch-item-head">
-              <span>3. Mutex Floor Control + Fila FIFO 1.12x</span>
-              <span class="arch-badge">Zero Colisão</span>
-            </div>
-            <p>Apenas 1 locutor ativo por vez (hard-cap 45s). Quem aperta durante uma fala entra na fila automática, e o ouvinte acelera o áudio em <code>1.12x</code> se acumular chunks.</p>
-          </div>
-
-          <div class="arch-item">
-            <div class="arch-item-head">
-              <span>4. Fan-Out por Idioma Único &amp; Host-Pays</span>
-              <span class="arch-badge">Margem &gt;80%</span>
-            </div>
-            <p>Se 30 pessoas ouvem em 3 idiomas, o servidor processa apenas 3 traduções. No Trial Grátis, usa TTS local para custo zero de síntese.</p>
+        <!-- SELEÇÃO DO IDIOMA NATIVO -->
+        <div class="field-group">
+          <span class="field-label">Meu Idioma Nativo (Fala e Escuta)</span>
+          <div id="lang-selector-grid" class="lang-grid" role="radiogroup" aria-label="Idioma nativo">
+            <button type="button" class="lang-option-btn selected" data-lang="pt-BR">
+              <span class="lang-flag">🇧🇷</span>
+              <span class="lang-info">
+                <span class="lang-name">Português</span>
+                <span class="lang-sub">Brasil</span>
+              </span>
+            </button>
+            <button type="button" class="lang-option-btn" data-lang="en-US">
+              <span class="lang-flag">🇺🇸</span>
+              <span class="lang-info">
+                <span class="lang-name">English</span>
+                <span class="lang-sub">United States</span>
+              </span>
+            </button>
+            <button type="button" class="lang-option-btn" data-lang="es-ES">
+              <span class="lang-flag">🇪🇸</span>
+              <span class="lang-info">
+                <span class="lang-name">Español</span>
+                <span class="lang-sub">España / LatAm</span>
+              </span>
+            </button>
+            <button type="button" class="lang-option-btn" data-lang="fr-FR">
+              <span class="lang-flag">🇫🇷</span>
+              <span class="lang-info">
+                <span class="lang-name">Français</span>
+                <span class="lang-sub">France</span>
+              </span>
+            </button>
+            <button type="button" class="lang-option-btn" data-lang="de-DE">
+              <span class="lang-flag">🇩🇪</span>
+              <span class="lang-info">
+                <span class="lang-name">Deutsch</span>
+                <span class="lang-sub">Deutschland</span>
+              </span>
+            </button>
+            <button type="button" class="lang-option-btn" data-lang="ja-JP">
+              <span class="lang-flag">🇯🇵</span>
+              <span class="lang-info">
+                <span class="lang-name">日本語</span>
+                <span class="lang-sub">日本</span>
+              </span>
+            </button>
           </div>
         </div>
-      </aside>
+
+        <button id="btn-submit-setup" type="submit" class="btn-create-room">
+          <span id="btn-submit-label">Criar Sala e Gerar QR Code</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </form>
     </section>
 
     <!-- ====================================================================
-         VIEW 2: ACTIVE TRANSLATION ROOM (STUDIO CONSOLE)
+         3. ACTIVE ROOM SCREEN
          ==================================================================== -->
-    <section id="view-room" class="room-layout hidden" aria-label="Sala Ativa de Tradução">
-      <!-- LEFT COLUMN: QR CODE ONBOARDING & PARTICIPANTS -->
-      <div>
-        <div class="card">
-          <div class="card-title">
-            <span>Convite Instantâneo (Sem Login)</span>
-            <button id="btn-leave-room" type="button" class="btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.72rem;">Sair</button>
+    <section id="room-screen" class="room-screen hidden" aria-label="Sala de Tradução">
+      <!-- ROOM TOP BAR (Houses the shrunk QR Code in top-right corner once 1st guest joins) -->
+      <header class="room-topbar">
+        <div class="room-title-group">
+          <div class="room-live-pill">
+            <span class="live-dot"></span>
+            <span id="room-participant-counter">Aguardando participantes...</span>
           </div>
-
-          <div id="qr-code-container" class="qr-box" aria-label="QR Code da Sala"></div>
-          <div id="room-code-label" class="room-code-display">OMNI-2026</div>
-          <p style="text-align: center; font-size: 0.76rem; color: var(--text-secondary);">
-            Aponte a câmera do celular ou abra uma segunda aba em outro idioma para testar em tempo real.
-          </p>
-
-          <div class="qr-actions">
-            <button id="btn-open-second-tab" type="button" class="btn-secondary" title="Abre outra aba já configurada como participante em Inglês na mesma sala">
-              <span>↗ Abrir 2ª Aba (Ouvinte EN-US)</span>
-            </button>
-            <button id="btn-copy-room-link" type="button" class="btn-secondary">
-              <span id="copy-link-text">Copiar Link</span>
-            </button>
-          </div>
+          <h2 id="room-header-title" class="room-name-heading">Sala Omnivox</h2>
         </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span>Participantes na Sala</span>
-            <span id="participant-count-badge" class="lang-pill">1 online</span>
+        <!-- CORNER MINI QR CODE (Hidden while large QR hero is shown; appears when 1st person enters!) -->
+        <button type="button" id="btn-corner-qr" class="corner-qr-trigger hidden" title="Toque para ampliar o QR Code da sala">
+          <div id="corner-qr-svg" class="corner-qr-mini-box"></div>
+          <div class="corner-qr-label">
+            <span>QR da Sala</span>
+            <span id="corner-room-code">Ampliar</span>
           </div>
+        </button>
+      </header>
 
-          <div class="form-group" style="margin-bottom: 0.75rem;">
-            <label class="form-label" for="select-inroom-lang" style="font-size: 0.7rem;">Trocar Meu Idioma de Escuta/Fala</label>
-            <select id="select-inroom-lang" class="form-select" style="padding: 0.45rem 0.65rem; font-size: 0.82rem;">
-              <option value="pt-BR">🇧🇷 Português (Brasil)</option>
-              <option value="en-US">🇺🇸 English (US)</option>
-              <option value="es-ES">🇪🇸 Español</option>
-              <option value="fr-FR">🇫🇷 Français</option>
-              <option value="de-DE">🇩🇪 Deutsch</option>
-              <option value="ja-JP">🇯🇵 日本語</option>
-            </select>
+      <!-- STATE A: LARGE QR CODE SHARE CARD (Visible right after creating room until 1st person joins) -->
+      <div id="qr-hero-card" class="qr-hero-section">
+        <div class="qr-hero-badge">
+          <span>⏳ Aguardando o 1º participante entrar...</span>
+        </div>
+        <h3 id="qr-hero-room-name" class="qr-hero-title">Sala Criada!</h3>
+        <p class="qr-hero-desc">
+          Peça para os participantes apontarem a câmera do celular para o QR Code abaixo ou envie o link.
+        </p>
+
+        <div id="qr-large-svg" class="qr-frame-large" aria-label="QR Code para entrar na sala"></div>
+
+        <div class="qr-room-info-box">
+          <div style="text-align: left;">
+            <div style="font-size: 0.68rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Anfitrião da Sala</div>
+            <div id="qr-host-summary" style="font-size: 0.85rem; font-weight: 700;">Você</div>
           </div>
+          <span id="qr-code-slug" class="qr-room-code">OMNI</span>
+        </div>
 
-          <div class="form-group" style="margin-bottom: 0.75rem;">
-            <label class="form-label" for="select-inroom-acoustics" style="font-size: 0.7rem;">Meu Modo Acústico</label>
-            <select id="select-inroom-acoustics" class="form-select" style="padding: 0.45rem 0.65rem; font-size: 0.82rem;">
-              <option value="headphones">🎧 Fone de Ouvido (Transição 120ms)</option>
-              <option value="speaker">🔊 Alto-Falante na Mesa (Gate Anti-Eco 650ms)</option>
-            </select>
-          </div>
+        <div class="qr-share-actions">
+          <button type="button" id="btn-native-share" class="btn-share-action primary">
+            <span>📤 Compartilhar</span>
+          </button>
+          <button type="button" id="btn-copy-link" class="btn-share-action">
+            <span id="lbl-copy-link">🔗 Copiar Link</span>
+          </button>
+        </div>
 
-          <div id="participants-list" class="participant-list"></div>
+        <div class="simulate-join-bar">
+          <span>Testando sozinho neste aparelho?</span>
+          <button type="button" id="btn-simulate-first-guest" class="btn-chip">
+            <span>👋 Simular Entrada de Participante</span>
+          </button>
         </div>
       </div>
 
-      <!-- CENTER COLUMN: FLOOR CONTROL, STREAMING FEED & PUSH-TO-TALK -->
-      <div class="stage-card">
-        <div id="floor-status-bar" class="floor-status-bar">
-          <div class="floor-badge">
-            <span class="floor-dot"></span>
-            <span id="floor-status-text">Canal Livre — Segure o botão PTT para falar</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span id="floor-timer-badge" class="lang-pill">00:00 / 00:45</span>
-            <span id="acoustic-gate-badge" class="lang-pill">🎧 Gate: 120ms</span>
-          </div>
+      <!-- STATE B: PARTICIPANTS WITH AVATARS & LANGUAGES + TRANSLATION FEED -->
+      <div id="participants-stage" class="participants-stage">
+        <div class="stage-section-header">
+          <span>Participantes na Sala</span>
+          <button type="button" id="btn-add-simulated-guest" class="btn-chip" style="padding: 0.25rem 0.65rem; font-size: 0.7rem;">
+            + Simular +1 Pessoa
+          </button>
         </div>
 
-        <div id="speaker-queue-strip" class="queue-strip hidden">
-          <span id="speaker-queue-text">Fila de Mão Levantada: ninguém aguardando</span>
-          <span class="lang-pill" id="speaker-queue-count">0 na fila</span>
+        <div id="participants-grid" class="participants-grid"></div>
+
+        <!-- LIVE SPEECH TRANSLATION STREAM -->
+        <div class="stage-section-header" style="margin-top: 0.35rem;">
+          <span>Tradução Simultânea ao Vivo</span>
+          <button type="button" id="btn-sim-guest-speak" class="btn-chip" style="padding: 0.25rem 0.65rem; font-size: 0.7rem;">
+            🔊 Ouvir Participante Falando
+          </button>
         </div>
 
-        <!-- LIVE TRANSCRIPT STREAM -->
-        <div id="transcript-feed" class="transcript-feed" aria-live="polite">
-          <div id="empty-feed-placeholder" class="empty-feed">
-            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Nenhuma fala transmitida ainda</p>
-            <p>Segure o botão <strong>Push-to-Talk</strong> abaixo (ou acione um participante simulado na coluna à direita) para ver a tradução por cláusulas semânticas e ouvir o TTS.</p>
-          </div>
-        </div>
-
-        <!-- INTERIM STREAMING CAPTION BAR -->
-        <div id="interim-caption-box" class="interim-box hidden">
-          <div>
-            <strong id="interim-speaker-label">Capturando cláusula:</strong>
-            <span id="interim-text-content">...</span>
-          </div>
-          <span class="arch-badge">Streaming STT</span>
-        </div>
-
-        <!-- HARDWARE PUSH-TO-TALK CONSOLE -->
-        <div class="ptt-dock">
-          <div class="ptt-button-wrap">
-            <button id="btn-ptt" type="button" class="ptt-button" aria-label="Segure para falar (Push to Talk)">
-              <div class="ptt-main-label">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" x2="12" y1="19" y2="22"/>
-                </svg>
-                <span id="ptt-main-text">SEGURE PARA FALAR (PTT)</span>
-              </div>
-              <span id="ptt-sub-text" class="ptt-sub-label">Ou mantenha a tecla ESPAÇO pressionada • Fatiamento semântico ativo</span>
-            </button>
-          </div>
-
-          <!-- QUICK TEST PHRASES & MANUAL CLAUSE SENDER (Works even without physical mic) -->
-          <div class="quick-phrases">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600;">
-                Disparo Rápido de Cláusulas (Teste sem falar no microfone):
-              </span>
-              <span id="mic-recognition-status" style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent-emerald);">
-                WebSpeech + Fallback Ativo
-              </span>
-            </div>
-            <div class="chip-row">
-              <button type="button" class="phrase-chip" data-phrase="Bom dia a todos, obrigado por entrarem na sala do Omnivox pelo QR Code.">
-                "Bom dia a todos, obrigado por entrarem..."
-              </button>
-              <button type="button" class="phrase-chip" data-phrase="Nossa arquitetura processa cláusulas semânticas em tempo real enquanto seguro o botão.">
-                "Nossa arquitetura processa cláusulas..."
-              </button>
-              <button type="button" class="phrase-chip" data-phrase="Podemos fechar o contrato de piloto ainda esta semana se os testes de latência passarem.">
-                "Podemos fechar o contrato de piloto..."
-              </button>
-            </div>
-            <div class="manual-input-row">
-              <input id="input-manual-speech" type="text" placeholder="Ou digite qualquer frase para transmitir pelo seu PTT..." />
-              <button id="btn-send-manual-speech" type="button" class="btn-secondary">Transmitir PTT</button>
-            </div>
+        <div id="conversation-feed" class="conversation-feed">
+          <div id="feed-empty-hint" style="text-align: center; padding: 1.35rem 1rem; color: var(--text-muted); font-size: 0.82rem; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px dashed var(--border-subtle);">
+            Segure o botão <strong>Falar</strong> fixo abaixo (ou toque em <em>"Ouvir Participante Falando"</em>) para conversar com tradução simultânea.
           </div>
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: CO-TESTER MULTI-SPEAKER SIMULATOR, FIFO QUEUE & UNIT ECONOMICS -->
-      <div>
-        <div class="card">
-          <div class="card-title">
-            <span>Simulador de Sala Multi-Idioma</span>
-            <span class="arch-badge">Teste de Fila/Mutex</span>
-          </div>
-          <p style="font-size: 0.77rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-            Dispare falas de outros participantes estrangeiros na sala. <strong>Dica de teste:</strong> Aperte seu botão PTT <em>enquanto</em> Sarah ou Mateo estiverem falando para testar a <strong>Fila de Mão Levantada</strong> e o <strong>Catch-up 1.12x</strong>!
-          </p>
-          <div class="bot-buttons">
-            <button type="button" id="btn-sim-sarah" class="bot-btn">
-              <div>
-                <div style="font-weight: 700;">🇺🇸 Sarah (Investidora EN-US)</div>
-                <div style="font-size: 0.72rem; color: var(--text-secondary);">Fala 2 cláusulas seguidas (6s) em Inglês</div>
-              </div>
-              <span class="lang-pill">Simular Fala</span>
-            </button>
-
-            <button type="button" id="btn-sim-mateo" class="bot-btn">
-              <div>
-                <div style="font-weight: 700;">🇪🇸 Mateo (Diretor ES-ES)</div>
-                <div style="font-size: 0.72rem; color: var(--text-secondary);">Fala 2 cláusulas em Espanhol</div>
-              </div>
-              <span class="lang-pill">Simular Fala</span>
-            </button>
-
-            <button type="button" id="btn-sim-collision" class="bot-btn" style="border-color: rgba(245, 158, 11, 0.4);">
-              <div>
-                <div style="font-weight: 700; color: var(--accent-amber);">⚡ Simular Disputa de Botão (3 vozes)</div>
-                <div style="font-size: 0.72rem; color: var(--text-secondary);">Sarah + Mateo + Kenji apertam PTT juntos</div>
-              </div>
-              <span class="lang-pill">Stress Test</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- CLIENT FIFO AUDIO BUFFER & CATCH-UP MONITOR -->
-        <div class="card">
-          <div class="card-title">
-            <span>Fila FIFO de Áudio (Este Dispositivo)</span>
-            <button id="btn-test-local-tts" type="button" class="btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.68rem;">Testar Voz</button>
-          </div>
-          <div class="metric-grid">
-            <div class="metric-box">
-              <div class="metric-label">Buffers na Fila</div>
-              <div class="metric-val" id="metric-fifo-depth">0 chunks</div>
+      <!-- FIXED BOTTOM PUSH-TO-TALK BAR -->
+      <div class="fixed-ptt-bar">
+        <div class="fixed-ptt-inner">
+          <button type="button" id="btn-fixed-ptt" class="ptt-hold-btn">
+            <div class="ptt-btn-main">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" x2="12" y1="19" y2="22"/>
+              </svg>
+              <span id="ptt-main-label">SEGURE PARA FALAR</span>
             </div>
-            <div class="metric-box">
-              <div class="metric-label">Velocidade TTS</div>
-              <div class="metric-val" id="metric-playback-speed" style="color: var(--accent-emerald);">1.00x</div>
-            </div>
-          </div>
-          <div id="fifo-queue-visual" class="fifo-queue-list">
-            <div class="fifo-item" style="color: var(--text-muted);">
-              <span>Fila de reprodução vazia</span>
-              <span>Idle</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- LIVE UNIT ECONOMICS & LANGUAGE FAN-OUT CALCULATOR -->
-        <div class="card">
-          <div class="card-title">
-            <span>Unit Economics (Tempo Real)</span>
-            <button id="btn-toggle-tier" type="button" class="btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.68rem;">Alternar Pro/Trial</button>
-          </div>
-
-          <div class="metric-grid">
-            <div class="metric-box">
-              <div class="metric-label">Idiomas Únicos</div>
-              <div class="metric-val" id="metric-unique-langs">1 idioma</div>
-            </div>
-            <div class="metric-box">
-              <div class="metric-label">Streams Poupados</div>
-              <div class="metric-val" id="metric-fanout-saved" style="color: var(--accent-emerald);">0</div>
-            </div>
-            <div class="metric-box">
-              <div class="metric-label">Custo Sessão (API)</div>
-              <div class="metric-val" id="metric-session-cost">$0.0000</div>
-            </div>
-            <div class="metric-box">
-              <div class="metric-label">Latência Últ. Chunk</div>
-              <div class="metric-val" id="metric-last-latency" style="color: var(--accent-amber);">— ms</div>
-            </div>
-          </div>
-
-          <div style="font-size: 0.74rem; color: var(--text-secondary); background: var(--bg-base); padding: 0.65rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-              <span>Motor TTS da Sala:</span>
-              <strong id="econ-tts-engine-label" style="color: var(--accent-emerald);">OS Nativo ($0.00/min)</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>Margem Bruta Projetada (Passe R$ 19,90):</span>
-              <strong id="econ-margin-label" style="color: var(--text-primary);">94.2%</strong>
-            </div>
-          </div>
+            <span id="ptt-sub-label" class="ptt-btn-sub">Tradução automática instantânea para o idioma de cada ouvinte</span>
+          </button>
         </div>
       </div>
     </section>
   </main>
+
+  <!-- EXPANDED QR CODE MODAL (When tapping the shrunk QR code in the top-right corner) -->
+  <div id="qr-modal" class="qr-modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="QR Code da Sala">
+    <div class="qr-modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+        <strong id="modal-room-title" style="font-size: 1rem;">Convite da Sala</strong>
+        <button type="button" id="btn-close-qr-modal" class="btn-chip" style="padding: 0.3rem 0.65rem;">Fechar ✕</button>
+      </div>
+      <div id="qr-modal-svg" class="qr-frame-large" style="margin-bottom: 0.85rem;"></div>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.85rem;">
+        Qualquer pessoa que escanear entrará direto pelo navegador.
+      </p>
+      <button type="button" id="btn-modal-share" class="btn-create-room" style="padding: 0.75rem 1rem; font-size: 0.9rem;">
+        📤 Compartilhar Link da Sala
+      </button>
+    </div>
+  </div>
 
   <script src="./app.js"></script>
 </body>
