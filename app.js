@@ -1,7 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.9';
+  const APP_VERSION = 'v0.10';
+  const THEME_STORAGE_KEY = 'app_ui_theme';
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -1886,9 +1887,83 @@
   }
 
   // ==========================================================================
-  // 14. EVENT BINDINGS (ANTIGRAVITY LIVE TAP + HOLD + BIDIRECTIONAL RECOVERY)
+  // 14. LIGHT / DARK THEME SYSTEM (LOCALSTORAGE + DATA-THEME + 5s AUTO-COLLAPSE)
+  // ==========================================================================
+  let themeCollapseTimer = null;
+
+  function getSavedUiTheme() {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch (_) {}
+    return 'dark';
+  }
+
+  function expandThemeButtonFor5Seconds() {
+    const btn = $('btn-theme-toggle');
+    if (!btn) return;
+    btn.classList.remove('collapsed');
+    if (themeCollapseTimer) clearTimeout(themeCollapseTimer);
+    themeCollapseTimer = setTimeout(() => {
+      btn.classList.add('collapsed');
+    }, 5000);
+  }
+
+  function applyUiTheme(theme, expandFor5s = true) {
+    const normalized = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', normalized);
+
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    } catch (_) {}
+
+    const metaTheme = $('meta-theme-color');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', normalized === 'light' ? '#F1F5F9' : '#070B10');
+    }
+
+    const btn = $('btn-theme-toggle');
+    const sunIcon = $('theme-icon-sun');
+    const moonIcon = $('theme-icon-moon');
+    const label = $('theme-toggle-label');
+
+    if (btn && sunIcon && moonIcon && label) {
+      if (normalized === 'dark') {
+        // Active theme is Dark -> Button offers switch to Light ("Claro" + Sun)
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+        label.textContent = 'Claro';
+        btn.setAttribute('aria-label', 'Alternar para tema claro');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.setAttribute('title', 'Mudar para Tema Claro');
+      } else {
+        // Active theme is Light -> Button offers switch to Dark ("Escuro" + Moon)
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+        label.textContent = 'Escuro';
+        btn.setAttribute('aria-label', 'Alternar para tema escuro');
+        btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('title', 'Mudar para Tema Escuro');
+      }
+    }
+
+    if (expandFor5s) {
+      expandThemeButtonFor5Seconds();
+    }
+  }
+
+  function toggleUiTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || getSavedUiTheme();
+    const next = current === 'light' ? 'dark' : 'light';
+    applyUiTheme(next, true);
+  }
+
+  // ==========================================================================
+  // 15. EVENT BINDINGS (ANTIGRAVITY LIVE TAP + HOLD + BIDIRECTIONAL RECOVERY)
   // ==========================================================================
   function bindEvents() {
+    $('btn-theme-toggle')?.addEventListener('click', toggleUiTheme);
+
     $('btn-camera-selfie').addEventListener('click', handleCameraButton);
     $('btn-upload-photo').addEventListener('click', () => $('input-file-photo').click());
     $('input-file-photo').addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
@@ -2065,7 +2140,7 @@
     }, { passive: true });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.9').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.10').catch(() => {});
     }
   }
 
@@ -2078,6 +2153,7 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
+    applyUiTheme(getSavedUiTheme(), true);
     bindEvents();
     initSplashAndUrl();
   });
