@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.5';
+  const APP_VERSION = 'v0.6';
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -1374,28 +1374,75 @@
     const feed = $('conversation-feed');
     const card = document.createElement('div');
     card.className = 'speech-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('title', 'Toque para ouvir novamente esta tradução');
     card.innerHTML = `
       <img class="speech-card-avatar" src="${payload.speakerAvatar || generateSvgAvatarDataUrl(payload.speakerName)}" alt="${escapeHtml(payload.speakerName)}" />
       <div class="speech-card-body">
         <div class="speech-card-meta">
-          <strong>${escapeHtml(payload.speakerName)} (${srcMeta.flag} ${srcMeta.short})</strong>
-          <span>→ ${tgtMeta.flag} ${escapeHtml(tgtMeta.nativeName)}</span>
+          <strong>${escapeHtml(payload.speakerName)} (${srcMeta.flag} ${srcMeta.short}) → ${tgtMeta.flag} ${escapeHtml(tgtMeta.short)}</strong>
+          <span class="speech-replay-badge">🔊 Ouvir</span>
         </div>
         <div class="speech-card-translated">${escapeHtml(translatedText)}</div>
         <div class="speech-card-original">Original: "${escapeHtml(payload.originalText)}"</div>
       </div>
     `;
+
+    // Click / tap anywhere on the conversation history card to listen again
+    const replayCardAudio = () => {
+      unlockMobileAudio();
+      playSonicCue(560, 0.04);
+      speakTts(translatedText, tgtMeta.code, card);
+    };
+
+    card.addEventListener('click', replayCardAudio);
+    card.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        replayCardAudio();
+      }
+    });
+
     feed.prepend(card);
 
     // Speak out loud on listeners' phones (or on single-device demo if only 1 real phone is in room)
     const hasRealRemoteParticipants = state.participants.some(p => !p.isMe && !String(p.id).startsWith('guest-'));
     if (payload.speakerId !== state.userId || !hasRealRemoteParticipants) {
-      speakTts(translatedText, tgtMeta.code);
+      speakTts(translatedText, tgtMeta.code, card);
     }
   }
 
-  function speakTts(text, langCode) {
-    if (!('speechSynthesis' in window)) return;
+  function clearAllReplayingCards() {
+    document.querySelectorAll('.speech-card.replaying').forEach(el => {
+      el.classList.remove('replaying');
+      const badge = el.querySelector('.speech-replay-badge');
+      if (badge) badge.textContent = '🔊 Ouvir';
+    });
+  }
+
+  function speakTts(text, langCode, activeCard = null) {
+    clearAllReplayingCards();
+
+    let badge = null;
+    if (activeCard) {
+      activeCard.classList.add('replaying');
+      badge = activeCard.querySelector('.speech-replay-badge');
+      if (badge) badge.textContent = '🔊 Ouvindo...';
+    }
+
+    const onDone = () => {
+      if (activeCard) {
+        activeCard.classList.remove('replaying');
+        if (badge) badge.textContent = '🔊 Ouvir';
+      }
+    };
+
+    if (!('speechSynthesis' in window)) {
+      setTimeout(onDone, 1200);
+      return;
+    }
+
     try {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
@@ -1406,8 +1453,35 @@
       const prefix = langCode.split('-')[0].toLowerCase();
       const fallbackVoice = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
       if (exact || fallbackVoice) utter.voice = exact || fallbackVoice;
+
+      let finished = false;
+      const fallbackMs = Math.min(8000, Math.max(1500, text.length * 65));
+      const timer = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          onDone();
+        }
+      }, fallbackMs);
+
+      utter.onend = () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          onDone();
+        }
+      };
+      utter.onerror = () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          onDone();
+        }
+      };
+
       window.speechSynthesis.speak(utter);
-    } catch (_) {}
+    } catch (_) {
+      setTimeout(onDone, 1200);
+    }
   }
 
   function simulateForeignParticipantSpeech() {
@@ -1546,7 +1620,7 @@
     }, { passive: false });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.5').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.6').catch(() => {});
     }
   }
 

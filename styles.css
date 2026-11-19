@@ -1000,13 +1000,32 @@ button, input, select {
 
 .speech-card {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  border: 1.5px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 0.85rem 1rem;
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.1s ease, box-shadow 0.16s ease;
   animation: screenFadeIn 0.25s ease-out;
+}
+
+.speech-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+.speech-card:active {
+  transform: scale(0.985);
+}
+
+.speech-card.replaying {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.1);
+  box-shadow: 0 0 18px var(--accent-emerald-glow);
 }
 
 .speech-card-avatar {
@@ -1027,9 +1046,35 @@ button, input, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   font-size: 0.72rem;
   color: var(--text-secondary);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.28rem;
+}
+
+.speech-replay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.speech-card:hover .speech-replay-badge {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.speech-card.replaying .speech-replay-badge {
+  background: var(--accent-emerald);
+  color: #04130D;
+  border-color: var(--accent-emerald);
 }
 
 .speech-card-translated {
