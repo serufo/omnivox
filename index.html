@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=0.6" />
+  <link rel="stylesheet" href="./styles.css?v=0.7" />
 </head>
 <body>
   <!-- ======================================================================
@@ -42,7 +42,7 @@
       <div class="splash-progress-fill"></div>
     </div>
 
-    <div id="splash-version-badge" class="splash-version-badge">v0.6</div>
+    <div id="splash-version-badge" class="splash-version-badge">v0.7</div>
   </section>
 
   <!-- ======================================================================
@@ -56,7 +56,7 @@
       <header class="setup-header">
         <div class="setup-brand-pill">
           <span class="live-dot"></span>
-          <span>OMNIVOX v0.6 • 50 IDIOMAS DISPONÍVEIS</span>
+          <span>OMNIVOX v0.7 • 50 IDIOMAS DISPONÍVEIS</span>
         </div>
         <h1 id="setup-main-title">Criar Nova Sala</h1>
         <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
@@ -264,20 +264,43 @@
         </div>
       </div>
 
-      <!-- FIXED BOTTOM PUSH-TO-TALK BAR -->
+      <!-- FIXED BOTTOM PUSH-TO-TALK BAR + DISCREET TEXT CHAT OPTION -->
       <div class="fixed-ptt-bar">
         <div class="fixed-ptt-inner">
-          <button type="button" id="btn-fixed-ptt" class="ptt-hold-btn">
-            <div class="ptt-btn-main">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" x2="12" y1="19" y2="22"/>
+          <!-- EXPANDABLE TEXT CHAT DRAWER (Hidden by default, opened by discreet keyboard button) -->
+          <div id="text-chat-drawer" class="text-chat-drawer hidden">
+            <input id="input-text-message" class="text-chat-input" type="text" placeholder="Digite sua mensagem para traduzir e enviar..." autocomplete="off" />
+            <button type="button" id="btn-send-text-message" class="btn-send-text">
+              <span>Enviar</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
-              <span id="ptt-main-label">SEGURE PARA FALAR</span>
-            </div>
-            <span id="ptt-sub-label" class="ptt-btn-sub">Tradução automática instantânea para o idioma de cada ouvinte</span>
-          </button>
+            </button>
+          </div>
+
+          <div class="ptt-bottom-row">
+            <button type="button" id="btn-fixed-ptt" class="ptt-hold-btn">
+              <div class="ptt-btn-main">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" x2="12" y1="19" y2="22"/>
+                </svg>
+                <span id="ptt-main-label">SEGURE PARA FALAR</span>
+              </div>
+              <span id="ptt-sub-label" class="ptt-btn-sub">Tradução automática instantânea para o idioma de cada ouvinte</span>
+            </button>
+
+            <!-- DISCREET BUTTON TO OPEN WRITTEN CONVERSATION INPUT -->
+            <button type="button" id="btn-toggle-text-chat" class="btn-toggle-keyboard" title="Conversar por escrita" aria-label="Abrir conversa por escrita">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                <path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"></path>
+              </svg>
+              <span>Texto</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -334,6 +357,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=0.6"></script>
+  <script src="./app.js?v=0.7"></script>
 </body>
 </html>

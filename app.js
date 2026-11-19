@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.6';
+  const APP_VERSION = 'v0.7';
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -1519,6 +1519,35 @@
     }, 1050);
   }
 
+  async function sendWrittenMessage() {
+    const input = $('input-text-message');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    unlockMobileAudio();
+    input.value = '';
+
+    const clausePayload = {
+      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      speakerId: state.userId,
+      speakerName: state.userName,
+      speakerAvatar: state.avatarThumbUrl || state.avatarDataUrl,
+      sourceLang: state.nativeLang,
+      originalText: text
+    };
+
+    CloudRelay.publish('speech_clause', {
+      roomSlug: state.roomSlug,
+      clause: clausePayload
+    });
+
+    await receiveSpeechClause({
+      ...clausePayload,
+      speakerAvatar: state.avatarDataUrl
+    });
+  }
+
   // ==========================================================================
   // 13. EVENT BINDINGS
   // ==========================================================================
@@ -1619,8 +1648,28 @@
       if (state.isHoldingPtt) stopPushToTalk();
     }, { passive: false });
 
+    const btnToggleChat = $('btn-toggle-text-chat');
+    const chatDrawer = $('text-chat-drawer');
+    if (btnToggleChat && chatDrawer) {
+      btnToggleChat.addEventListener('click', () => {
+        const isHidden = chatDrawer.classList.toggle('hidden');
+        btnToggleChat.classList.toggle('active', !isHidden);
+        if (!isHidden) {
+          setTimeout(() => $('input-text-message')?.focus(), 50);
+        }
+      });
+    }
+
+    $('btn-send-text-message')?.addEventListener('click', sendWrittenMessage);
+    $('input-text-message')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendWrittenMessage();
+      }
+    });
+
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.6').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.7').catch(() => {});
     }
   }
 

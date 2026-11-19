@@ -1107,11 +1107,72 @@ button, input, select {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  gap: 0.55rem;
+}
+
+.text-chat-drawer {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 18px;
+  padding: 0.45rem 0.5rem 0.45rem 0.85rem;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  animation: screenFadeIn 0.18s ease-out;
+}
+
+.text-chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  padding: 0.35rem 0;
+  min-width: 0;
+}
+
+.text-chat-input:focus {
+  outline: none;
+}
+
+.text-chat-input::placeholder {
+  color: var(--text-muted);
+}
+
+.btn-send-text {
+  background: var(--accent-emerald);
+  color: #04130D;
+  border: none;
+  border-radius: 13px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.btn-send-text:hover {
+  filter: brightness(1.06);
+}
+
+.btn-send-text:active {
+  transform: scale(0.96);
+}
+
+.ptt-bottom-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  width: 100%;
 }
 
 .ptt-hold-btn {
-  width: 100%;
+  flex: 1;
   min-height: 72px;
   border-radius: 22px;
   background: linear-gradient(180deg, #1E293B 0%, #0F172A 100%);
@@ -1127,8 +1188,37 @@ button, input, select {
   align-items: center;
   justify-content: center;
   gap: 0.2rem;
-  padding: 0.75rem 1.2rem;
+  padding: 0.75rem 1rem;
   transition: all 0.12s ease;
+}
+
+.btn-toggle-keyboard {
+  width: 54px;
+  border-radius: 20px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-keyboard:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.btn-toggle-keyboard.active {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--accent-emerald);
 }
 
 .ptt-hold-btn:active,
