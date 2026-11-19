@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.8';
+  const APP_VERSION = 'v0.9';
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -2065,7 +2065,7 @@
     }, { passive: true });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.8').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.9').catch(() => {});
     }
   }
 

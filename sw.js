@@ -1,9 +1,9 @@
-const CACHE_NAME = 'omnivox-pwa-v0.8';
+const CACHE_NAME = 'omnivox-pwa-v0.9';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=0.8',
-  './app.js?v=0.8',
+  './styles.css?v=0.9',
+  './app.js?v=0.9',
   './manifest.json',
   './icon.svg'
 ];
