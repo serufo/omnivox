@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.7';
+  const APP_VERSION = 'v0.8';
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -395,6 +395,8 @@
       try {
         const env = typeof rawStrOrObj === 'string' ? JSON.parse(rawStrOrObj) : rawStrOrObj;
         if (!env || !env.eventId || !env.type) return;
+        // Ignore stale cached events older than 30 minutes
+        if (env.ts && Date.now() - env.ts > 30 * 60 * 1000) return;
         if (seenEventIds.has(env.eventId)) return;
         seenEventIds.add(env.eventId);
         if (onEventCallback) onEventCallback(env);
@@ -406,6 +408,7 @@
         const ws = new WebSocket(brokerUrl, 'mqtt');
         ws.binaryType = 'arraybuffer';
         let pingInterval = null;
+        let closed = false;
 
         ws.onopen = () => {
           const cid = 'omnivox_' + Math.random().toString(36).slice(2, 10);
@@ -420,7 +423,7 @@
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
             }
-          }, 25000);
+          }, 22000);
         };
 
         ws.onmessage = (ev) => {
@@ -429,36 +432,56 @@
           }
         };
 
-        ws.onclose = () => {
+        const handleDisconnect = () => {
+          if (closed) return;
+          closed = true;
           if (pingInterval) clearInterval(pingInterval);
+          mqttSockets = mqttSockets.filter(s => s !== ws);
+          setTimeout(() => {
+            if (activeTopic) connectMqttBroker(brokerUrl, mqttTopic);
+          }, 1800);
         };
-        ws.onerror = () => {
-          if (pingInterval) clearInterval(pingInterval);
-        };
+
+        ws.onclose = handleDisconnect;
+        ws.onerror = handleDisconnect;
 
         mqttSockets.push(ws);
       } catch (_) {}
     }
 
-    function connectNtfyChannel(ntfyTopic) {
-      // 1. Live WebSocket stream (with ?since=20m so a newly joined phone immediately receives the Host's presence!)
-      try {
-        const ws = new WebSocket(`wss://ntfy.sh/${ntfyTopic}/ws?since=20m`);
-        ntfyWs = ws;
-        ws.onmessage = (ev) => {
-          try {
-            const outer = JSON.parse(ev.data);
-            if (outer && outer.event === 'message' && outer.message) {
-              dispatchEnvelope(outer.message);
-            }
-          } catch (_) {}
-        };
-      } catch (_) {}
+    let pollRecentFn = null;
 
-      // 2. HTTPS Poll fallback (in case carrier network blocks WebSockets)
+    function connectNtfyChannel(ntfyTopic) {
+      const openNtfyWs = () => {
+        try {
+          if (ntfyWs) {
+            try { ntfyWs.onclose = null; ntfyWs.close(); } catch (_) {}
+          }
+          const ws = new WebSocket(`wss://ntfy.sh/${ntfyTopic}/ws?since=all`);
+          ntfyWs = ws;
+          ws.onmessage = (ev) => {
+            try {
+              const outer = JSON.parse(ev.data);
+              if (outer && outer.event === 'message' && outer.message) {
+                dispatchEnvelope(outer.message);
+              }
+            } catch (_) {}
+          };
+          ws.onclose = () => {
+            setTimeout(() => {
+              if (activeTopic === ntfyTopic) openNtfyWs();
+            }, 1600);
+          };
+        } catch (_) {}
+      };
+
+      openNtfyWs();
+
       const pollRecent = async () => {
         try {
-          const res = await fetch(`https://ntfy.sh/${ntfyTopic}/json?poll=1&since=20m`);
+          const res = await fetch(`https://ntfy.sh/${ntfyTopic}/json?poll=1&since=all`, {
+            cache: 'no-store'
+          });
           if (!res.ok) return;
           const text = await res.text();
           text.split('\n').forEach(line => {
@@ -473,26 +496,24 @@
         } catch (_) {}
       };
 
+      pollRecentFn = pollRecent;
       pollRecent();
       if (pollTimer) clearInterval(pollTimer);
-      pollTimer = setInterval(pollRecent, 4500);
+      pollTimer = setInterval(pollRecent, 3000);
     }
 
     function connectRoom(roomSlug, callback) {
       const cleanSlug = (roomSlug || 'DEFAULT').toLowerCase().replace(/[^a-z0-9]/g, '');
-      activeTopic = `omnivox_v05_${cleanSlug}`;
+      activeTopic = `omnivox_v08_${cleanSlug}`;
       onEventCallback = callback;
 
-      // Local BroadcastChannel
       if (bc) {
         bc.onmessage = (ev) => dispatchEnvelope(ev.data);
       }
 
-      // Connect ntfy.sh over port 443 (WSS + HTTPS poll)
       connectNtfyChannel(activeTopic);
 
-      // Connect dual public MQTT-over-WSS brokers in parallel
-      const mqttTopic = `omnivox/v05/room/${cleanSlug}`;
+      const mqttTopic = `omnivox/v08/room/${cleanSlug}`;
       connectMqttBroker('wss://broker.emqx.io:8084/mqtt', mqttTopic);
       connectMqttBroker('wss://broker.hivemq.com:8884/mqtt', mqttTopic);
     }
@@ -513,9 +534,9 @@
         try { bc.postMessage(envelope); } catch (_) {}
       }
 
-      // 2. MQTT over WSS publish
-      const cleanSlug = activeTopic.replace('omnivox_v05_', '');
-      const mqttTopic = `omnivox/v05/room/${cleanSlug}`;
+      // 2. MQTT over WSS publish (instant low-latency fan-out)
+      const cleanSlug = activeTopic.replace('omnivox_v08_', '');
+      const mqttTopic = `omnivox/v08/room/${cleanSlug}`;
       const mqttFrame = buildMqttPublishPacket(mqttTopic, rawJson, retainMqtt);
       mqttSockets.forEach(ws => {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -523,91 +544,32 @@
         }
       });
 
-      // 3. ntfy.sh HTTPS POST (port 443 universal delivery + 20m replay cache for joining phones)
-      fetch(`https://ntfy.sh/${activeTopic}`, {
-        method: 'POST',
-        body: rawJson
-      }).catch(() => {});
+      // 3. ntfy.sh HTTPS POST (skip heavy high-frequency live_interim on HTTP POST to avoid rate-limit, send all speech_clause & presence!)
+      if (type !== 'live_interim') {
+        fetch(`https://ntfy.sh/${activeTopic}`, {
+          method: 'POST',
+          body: rawJson
+        }).catch(() => {});
+      }
     }
 
-    return { connectRoom, publish };
+    function pollNow() {
+      if (pollRecentFn) pollRecentFn();
+    }
+
+    return { connectRoom, publish, pollNow };
   })();
 
   // ==========================================================================
-  // 4. UNIVERSAL 50-LANGUAGE TRANSLATION ENGINE (INSTANT CORPUS + NEURAL CLOUD API)
+  // 4. UNIVERSAL 50-LANGUAGE NEURAL TRANSLATION ENGINE (CONTEXTUAL SENTENCE GTX)
   // ==========================================================================
-  const CONVERSATION_CORPUS = [
-    {
-      pt: "Olá pessoal, sejam todos muito bem-vindos à nossa sala no Omnivox!",
-      en: "Hello everyone, welcome to our Omnivox translation room!",
-      es: "¡Hola a todos, bienvenidos a nuestra sala de traducción en Omnivox!",
-      fr: "Bonjour à tous, bienvenue dans notre salle de traduction Omnivox !",
-      de: "Hallo zusammen, herzlich willkommen in unserem Omnivox-Übersetzungsraum!",
-      it: "Ciao a tutti, benvenuti nella nostra sala di traduzione Omnivox!",
-      nl: "Hallo allemaal, welkom in onze Omnivox-vertaalkamer!",
-      pl: "Cześć всем, witamy w naszym pokoju tłumaczeń Omnivox!",
-      ru: "Всем привет, добро пожаловать в нашу комнату перевода Omnivox!",
-      uk: "Всім привіт, ласкаво просимо до нашої кімнати перекладу Omnivox!",
-      ja: "皆さんこんにちは、Omnivox翻訳ルームへようこそ！",
-      'zh-CN': "大家好，欢迎来到我们的 Omnivox 同声传译室！",
-      'zh-TW': "大家好，歡迎來到我們的 Omnivox 同步翻譯室！",
-      ko: "여러분 안녕하세요, Omnivox 통역실에 오신 것을 환영합니다!",
-      ar: "مرحباً بالجميع، أهلاً بكم في غرفة الترجمة الفورية Omnivox!",
-      hi: "नमस्ते सभी को, हमारे Omnivox अनुवाद कक्ष में आपका स्वागत है!",
-      tr: "Herkese merhaba, Omnivox çeviri odamıza hoş geldiniz!",
-      he: "שלום לכולם, ברוכים הבאים לחדר התרגום של Omnivox!"
-    },
-    {
-      pt: "Estou ouvindo a tradução perfeitamente no meu idioma nativo.",
-      en: "I am hearing the translation clearly in my native language.",
-      es: "Estoy escuchando la traducción perfectamente en mi idioma nativo.",
-      fr: "J'entends parfaitement la traduction dans ma langue maternelle.",
-      de: "Ich höre die Übersetzung perfekt in meiner Muttersprache.",
-      it: "Sento perfettamente la traduzione nella mia lingua madre.",
-      nl: "Ik hoor de vertaling perfect in mijn moedertaal.",
-      ru: "Я отлично слышу перевод на своем родном языке.",
-      ja: "母国語で翻訳がはっきりと聞こえています。",
-      'zh-CN': "我能用母语非常清晰地听到翻译。",
-      ko: "모국어로 번역이 아주 잘 들립니다.",
-      ar: "أنا أسمع الترجمة بوضوح تام بلغتي الأم.",
-      hi: "मैं अपनी मातृभाषा में अनुवाद बिल्कुल साफ सुन रहा हूँ।",
-      tr: "Çeviriyi kendi ana dilimde mükemmel bir şekilde duyuyorum."
-    },
-    {
-      pt: "Podemos alinhar os próximos passos do projeto agora mesmo.",
-      en: "We can align the next steps of the project right now.",
-      es: "Podemos alinear los próximos pasos del proyecto ahora mismo.",
-      fr: "Nous pouvons aligner les prochaines étapes du projet dès maintenant.",
-      de: "Wir können die nächsten Schritte des Projekts gleich jetzt abstimmen.",
-      it: "Possiamo allineare i prossimi passi del progetto proprio ora.",
-      ru: "Мы можем согласовать следующие шаги проекта прямо сейчас.",
-      ja: "プロジェクトの次のステップを今すぐ調整できます。",
-      'zh-CN': "我们现在就可以对齐项目的下一步计划。",
-      ko: "지금 바로 프로젝트의 다음 단계를 조율할 수 있습니다.",
-      ar: "يمكننا تنسيق الخطوات التالية للمشروع الآن.",
-      hi: "हम अभी प्रोजेक्ट के अगले चरणों को तय कर सकते हैं।"
-    },
-    {
-      pt: "Excelente experiência, entrou direto pelo QR Code sem precisar instalar nada!",
-      en: "Great experience, joined straight via the QR Code without installing anything!",
-      es: "¡Excelente experiencia, entré directo con el código QR sin instalar nada!",
-      fr: "Super expérience, rejoint directement via le QR Code sans rien installer !",
-      de: "Tolle Erfahrung, direkt über den QR-Code beigetreten, ohne etwas zu installieren!",
-      it: "Ottima esperienza, sono entrato direttamente tramite QR Code senza installare nulla!",
-      ja: "素晴らしい体験です。何もインストールせずにQRコードから直接参加できました！",
-      'zh-CN': "体验太棒了，直接扫二维码就进来了，不需要安装任何东西！",
-      ko: "아무것도 설치하지 않고 QR 코드로 바로 접속할 수 있어서 정말 편리하네요!",
-      ar: "تجربة رائعة، دخلت مباشرة عبر رمز QR دون الحاجة لتثبيت أي تطبيق!"
-    }
-  ];
-
   const translationCache = new Map();
 
   async function translateUniversalAsync(text, sourceLangCode, targetLangCode) {
     if (!text || !text.trim()) return '';
-    if (sourceLangCode === targetLangCode) return text.trim();
-
     const clean = text.trim();
+    if (sourceLangCode === targetLangCode) return clean;
+
     const srcMeta = getLangMeta(sourceLangCode);
     const tgtMeta = getLangMeta(targetLangCode);
     if (srcMeta.iso === tgtMeta.iso && srcMeta.code === tgtMeta.code) return clean;
@@ -615,25 +577,19 @@
     const cacheKey = `${srcMeta.iso}|${tgtMeta.iso}|${clean.toLowerCase()}`;
     if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
 
-    const norm = clean.toLowerCase().replace(/[.,!?¡¿]/g, '').trim();
-    for (const item of CONVERSATION_CORPUS) {
-      for (const val of Object.values(item)) {
-        if (val.toLowerCase().replace(/[.,!?¡¿]/g, '').trim() === norm) {
-          const direct = item[tgtMeta.code] || item[tgtMeta.iso];
-          if (direct) {
-            translationCache.set(cacheKey, direct);
-            return direct;
-          }
-        }
-      }
-    }
-
+    // Primary Neural Model: Google GTX Neural Machine Translation with dj=1 full sentence structure
     try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(srcMeta.iso)}&tl=${encodeURIComponent(tgtMeta.iso)}&dt=t&q=${encodeURIComponent(clean)}`;
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(srcMeta.iso)}&tl=${encodeURIComponent(tgtMeta.iso)}&dt=t&dj=1&q=${encodeURIComponent(clean)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && Array.isArray(data[0])) {
+        if (data && Array.isArray(data.sentences)) {
+          const translated = data.sentences.map(s => s.trans || '').join('').trim();
+          if (translated) {
+            translationCache.set(cacheKey, translated);
+            return translated;
+          }
+        } else if (Array.isArray(data) && Array.isArray(data[0])) {
           const translated = data[0].map(part => part[0]).join('').trim();
           if (translated) {
             translationCache.set(cacheKey, translated);
@@ -643,13 +599,14 @@
       }
     } catch (_) {}
 
+    // Secondary Neural Fallback: MyMemory Neural Translation
     try {
       const pair = `${srcMeta.iso}|${tgtMeta.iso}`;
       const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${encodeURIComponent(pair)}`);
       if (res2.ok) {
         const data2 = await res2.json();
         if (data2 && data2.responseData && data2.responseData.translatedText) {
-          const out = data2.responseData.translatedText;
+          const out = data2.responseData.translatedText.trim();
           translationCache.set(cacheKey, out);
           return out;
         }
@@ -683,15 +640,6 @@
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
 
-  const SIMULATED_GUESTS = [
-    { id: 'guest-sarah', name: 'Sarah Jenkins', lang: 'en-US', color: '#0EA5E9', sampleText: 'Hello everyone, welcome to our Omnivox translation room!' },
-    { id: 'guest-mateo', name: 'Mateo Rivera', lang: 'es-ES', color: '#F59E0B', sampleText: 'Estoy escuchando la traducción perfectamente en mi idioma nativo.' },
-    { id: 'guest-kenji', name: 'Kenji Takahashi', lang: 'ja-JP', color: '#8B5CF6', sampleText: 'プロジェクトの次のステップを今すぐ調整できます。' },
-    { id: 'guest-giulia', name: 'Giulia Conti', lang: 'it-IT', color: '#10B981', sampleText: 'Ottima esperienza, sono entrato direttamente tramite QR Code senza installare nulla!' },
-    { id: 'guest-wei', name: 'Wei Zhang', lang: 'zh-CN', color: '#EF4444', sampleText: '我能用母语非常清晰地听到翻译。' },
-    { id: 'guest-tariq', name: 'Tariq Al-Mansoor', lang: 'ar-SA', color: '#14B8A6', sampleText: 'مرحباً بالجميع، أهلاً بكم في غرفة الترجمة الفورية Omnivox!' }
-  ];
-
   // ==========================================================================
   // 6. APPLICATION STATE
   // ==========================================================================
@@ -702,9 +650,8 @@
     roomSlug: '',
     nativeLang: 'pt-BR',
     avatarDataUrl: '',
-    avatarThumbUrl: '', // Compact 64x64 JPEG (<1.3KB) for instant cross-phone sync
+    avatarThumbUrl: '', // Compact 56x56 JPEG (<1.2KB) for instant cross-phone sync
     isJoiningFromQr: false,
-    qrHostInfo: null,   // { name, lang } extracted from QR URL if present
     inRoom: false,
 
     cameraStream: null,
@@ -716,19 +663,31 @@
 
     participants: [],
     activeSpeakerId: null,
-    isHoldingPtt: false,
-    speechRecognition: null,
-    spokenTranscript: '',
-    hostClauseCursor: 0,
-    guestCursor: 0,
 
-    audioCtx: null
+    // Antigravity Live Microphone State
+    isMicActive: false,
+    isLiveHandsFree: false,
+    pressStartTime: 0,
+    speechRecognition: null,
+    unflushedTranscript: '',
+    flushedLength: 0,
+    silenceFlushTimer: null,
+    lastInterimSentAt: 0,
+    remoteInterimHideTimer: null,
+
+    // Direct MediaRecorder fallback (for browsers without SpeechRecognition)
+    mediaRecorder: null,
+    recordedChunks: [],
+    micStream: null,
+
+    audioCtx: null,
+    sharedAudioEl: null
   };
 
   const $ = (id) => document.getElementById(id);
 
   // ==========================================================================
-  // 7. DEVICE NATIVE VOICE DETECTOR & 50-LANGUAGE MODAL
+  // 7. DEVICE NATIVE VOICE DETECTOR, NEURAL VOICE SCORER & 50-LANGUAGE MODAL
   // ==========================================================================
   function refreshInstalledVoices() {
     if (!('speechSynthesis' in window)) return;
@@ -752,6 +711,48 @@
       state.installedVoiceLangs.has(langObj.code.toLowerCase()) ||
       state.installedVoiceLangs.has(langObj.iso.toLowerCase())
     );
+  }
+
+  // Scores device TTS voices so Neural / Natural / Online / Premium voices always win over robotic legacy voices
+  function pickBestNeuralDeviceVoice(langCode) {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+
+    const targetLower = langCode.toLowerCase();
+    const prefix = targetLower.split('-')[0];
+
+    const candidates = voices.filter(v => {
+      const l = (v.lang || '').toLowerCase().replace('_', '-');
+      return l === targetLower || l.startsWith(prefix + '-') || l === prefix;
+    });
+
+    if (!candidates.length) return null;
+
+    let bestVoice = candidates[0];
+    let bestScore = -999;
+
+    for (const v of candidates) {
+      let score = 0;
+      const l = (v.lang || '').toLowerCase().replace('_', '-');
+      const name = (v.name || '').toLowerCase();
+
+      if (l === targetLower) score += 50;
+      if (name.includes('natural') || name.includes('neural')) score += 120;
+      if (name.includes('online')) score += 90;
+      if (name.includes('google')) score += 80;
+      if (name.includes('premium') || name.includes('enhanced') || name.includes('siri')) score += 75;
+      if (name.includes('francisca') || name.includes('antonio') || name.includes('luciana') || name.includes('samantha') || name.includes('daniel')) score += 45;
+      if (v.localService === false) score += 35;
+      if (name.includes('compact') || name.includes('espeak')) score -= 60;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestVoice = v;
+      }
+    }
+
+    return bestVoice;
   }
 
   function selectNativeLanguage(langCode) {
@@ -826,8 +827,8 @@
               <span class="catalog-lang-pt">${escapeHtml(item.ptName)} • ${item.code}</span>
             </div>
           </div>
-          <span class="catalog-voice-badge ${nativeVoice ? '' : 'cloud'}">
-            ${nativeVoice ? '🔊 Voz HD' : '🌐 Voz + Legenda'}
+          <span class="catalog-voice-badge">
+            ${nativeVoice ? '✨ Neural Live HD' : '☁️ Cloud Neural'}
           </span>
         </button>
       `;
@@ -856,6 +857,15 @@
   // ==========================================================================
   // 8. SPLASH SCREEN (4 SECONDS TRANSITION) & URL PARAM CHECK
   // ==========================================================================
+  function computeRoomSlug(rawName) {
+    return (rawName || 'Sala Omnivox')
+      .trim()
+      .slice(0, 18)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 12) || 'OMNI26';
+  }
+
   function initSplashAndUrl() {
     if ($('splash-version-badge')) {
       $('splash-version-badge').textContent = APP_VERSION;
@@ -863,19 +873,15 @@
 
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('r') || params.get('room');
-    const hostNameParam = params.get('h');
-    const hostLangParam = params.get('l');
 
     if (roomParam) {
       state.roomName = roomParam.trim();
+      state.roomSlug = computeRoomSlug(state.roomName);
       state.isJoiningFromQr = true;
-      if (hostNameParam || hostLangParam) {
-        state.qrHostInfo = {
-          name: hostNameParam || 'Anfitrião',
-          lang: hostLangParam || 'pt-BR'
-        };
-      }
-      $('input-room-name').value = state.roomName;
+      const roomInput = $('input-room-name');
+      roomInput.value = state.roomName;
+      roomInput.readOnly = true;
+      roomInput.style.opacity = '0.8';
       $('setup-main-title').textContent = `Entrar em "${state.roomName}"`;
       $('setup-subtitle').textContent = 'Você escaneou o QR Code! Escolha seu idioma, adicione sua foto e entre na sala.';
       $('btn-submit-label').textContent = 'Entrar na Sala Agora';
@@ -999,9 +1005,9 @@
   }
 
   // ==========================================================================
-  // 10. iOS SAFARI AUDIO UNLOCK (-70dB KEEP-ALIVE + WAKELOCK)
+  // 10. iOS SAFARI & MOBILE AUDIO UNLOCK (WITHOUT INTERFERING WITH MIC RECORDING)
   // ==========================================================================
-  async function unlockMobileAudio() {
+  async function unlockMobileAudio(forMicStart = false) {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!state.audioCtx && AC) {
@@ -1009,7 +1015,7 @@
         const osc = state.audioCtx.createOscillator();
         const gain = state.audioCtx.createGain();
         osc.frequency.value = 1.0;
-        gain.gain.value = 0.0003;
+        gain.gain.value = 0.0002;
         osc.connect(gain);
         gain.connect(state.audioCtx.destination);
         osc.start();
@@ -1017,7 +1023,14 @@
       if (state.audioCtx && state.audioCtx.state !== 'running') {
         await state.audioCtx.resume();
       }
-      if ('speechSynthesis' in window) {
+      if (!state.sharedAudioEl) {
+        const a = new Audio();
+        a.referrerPolicy = 'no-referrer';
+        a.playsInline = true;
+        state.sharedAudioEl = a;
+      }
+      // Only warm up speechSynthesis when NOT starting the microphone (so iOS doesn't switch audio session away from mic!)
+      if (!forMicStart && 'speechSynthesis' in window && !window.speechSynthesis.speaking) {
         const u = new SpeechSynthesisUtterance('');
         u.volume = 0;
         window.speechSynthesis.speak(u);
@@ -1028,13 +1041,13 @@
     } catch (_) {}
   }
 
-  function playSonicCue(freq = 540, dur = 0.05) {
+  function playSonicCue(freq = 540, dur = 0.045) {
     if (!state.audioCtx || state.audioCtx.state !== 'running') return;
     try {
       const o = state.audioCtx.createOscillator();
       const g = state.audioCtx.createGain();
       o.frequency.value = freq;
-      g.gain.value = 0.04;
+      g.gain.value = 0.035;
       o.connect(g);
       g.connect(state.audioCtx.destination);
       o.start();
@@ -1043,11 +1056,11 @@
   }
 
   // ==========================================================================
-  // 11. ROOM CREATION, QR CODE DISPLAY & MULTI-PHONE REALTIME SYNC
+  // 11. ROOM CREATION, QR CODE DISPLAY & MULTI-PHONE BIDIRECTIONAL SYNC
   // ==========================================================================
   function getShareableRoomUrl() {
     const base = `${window.location.origin}${window.location.pathname}`;
-    const r = encodeURIComponent(state.roomName.slice(0, 22));
+    const r = encodeURIComponent(state.roomName.slice(0, 18));
     return `${base}?r=${r}`;
   }
 
@@ -1061,6 +1074,7 @@
   }
 
   function broadcastMyPresence() {
+    if (!state.inRoom) return;
     CloudRelay.publish('participant_join', {
       roomSlug: state.roomSlug,
       participant: getMyNetworkProfile()
@@ -1070,11 +1084,11 @@
   async function handleSetupSubmit(e) {
     e.preventDefault();
     stopCameraStream();
-    await unlockMobileAudio();
+    await unlockMobileAudio(false);
 
     state.userName = $('input-my-name').value.trim() || 'Participante';
-    state.roomName = $('input-room-name').value.trim() || 'Sala Omnivox';
-    state.roomSlug = state.roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'OMNI26';
+    state.roomName = ($('input-room-name').value.trim() || 'Sala Omnivox').slice(0, 18);
+    state.roomSlug = computeRoomSlug(state.roomName);
     state.inRoom = true;
 
     if (!state.avatarDataUrl) {
@@ -1116,13 +1130,17 @@
 
     renderRoomView();
 
-    // Connect Cross-Device Realtime Relay (ntfy WSS/HTTPS + MQTT over WSS + BroadcastChannel)
+    // Connect Cross-Device Realtime Relay (ntfy WSS/HTTPS ?since=all + dual MQTT over WSS + BroadcastChannel)
     CloudRelay.connectRoom(state.roomSlug, handleCloudEvent);
 
-    // Announce our presence immediately + retry after 900ms once MQTT/WSS handshakes settle
+    // Announce our presence immediately + retry intervals + periodic heartbeat so all phones see each other bidirectionally
     broadcastMyPresence();
-    setTimeout(broadcastMyPresence, 900);
-    setTimeout(broadcastMyPresence, 2500);
+    setTimeout(broadcastMyPresence, 700);
+    setTimeout(broadcastMyPresence, 2000);
+    setTimeout(broadcastMyPresence, 4500);
+    setInterval(() => {
+      if (state.inRoom) broadcastMyPresence();
+    }, 15000);
   }
 
   function handleCloudEvent(envelope) {
@@ -1133,7 +1151,9 @@
       const p = payload.participant;
       if (!p || p.id === state.userId) return;
 
-      const isNew = !state.participants.some(item => item.id === p.id);
+      const existing = state.participants.find(item => item.id === p.id);
+      const isNewOrChanged = !existing || existing.lang !== p.lang || existing.name !== p.name;
+
       addOrUpdateParticipant({
         id: p.id,
         name: p.name,
@@ -1143,8 +1163,8 @@
         speaking: false
       });
 
-      // Whenever a new phone joins our room, reply with our own presence so both phones see the complete participant list!
-      if (isNew) {
+      // Reply with our own presence so both Host and Guest always have the full participant list
+      if (isNewOrChanged) {
         CloudRelay.publish('participant_ack', {
           roomSlug: state.roomSlug,
           targetId: p.id,
@@ -1165,12 +1185,51 @@
     } else if (type === 'speaking_state') {
       if (payload.speakerId === state.userId) return;
       state.activeSpeakerId = payload.speaking ? payload.speakerId : null;
+      if (!payload.speaking) {
+        hideLiveInterimBanner();
+      }
+      renderRoomView();
+    } else if (type === 'live_interim') {
+      if (payload.speakerId === state.userId) return;
+      state.activeSpeakerId = payload.speakerId;
+      showLiveInterimBanner(payload.speakerName, payload.sourceLang, payload.text);
       renderRoomView();
     } else if (type === 'speech_clause') {
       if (payload.clause && payload.clause.speakerId !== state.userId) {
+        hideLiveInterimBanner();
+        // Ensure the speaker is in our participant list even if their speech arrived before their join packet
+        if (!state.participants.some(item => item.id === payload.clause.speakerId)) {
+          addOrUpdateParticipant({
+            id: payload.clause.speakerId,
+            name: payload.clause.speakerName || 'Participante',
+            lang: payload.clause.sourceLang || 'pt-BR',
+            avatar: generateSvgAvatarDataUrl(payload.clause.speakerName || 'P', '#0EA5E9'),
+            isMe: false,
+            speaking: false
+          });
+        }
         receiveSpeechClause(payload.clause);
       }
     }
+  }
+
+  function showLiveInterimBanner(speakerName, sourceLang, text) {
+    const banner = $('live-interim-banner');
+    if (!banner || !text) return;
+    const lMeta = getLangMeta(sourceLang);
+    $('live-interim-speaker').textContent = `🎙️ ${speakerName} (${lMeta.flag} ${lMeta.short}) falando ao vivo...`;
+    $('live-interim-text').textContent = `"${text}"`;
+    banner.classList.remove('hidden');
+
+    if (state.remoteInterimHideTimer) clearTimeout(state.remoteInterimHideTimer);
+    state.remoteInterimHideTimer = setTimeout(() => {
+      hideLiveInterimBanner();
+    }, 4500);
+  }
+
+  function hideLiveInterimBanner() {
+    const banner = $('live-interim-banner');
+    if (banner) banner.classList.add('hidden');
   }
 
   function addOrUpdateParticipant(p) {
@@ -1179,11 +1238,13 @@
       state.participants[existingIdx] = {
         ...state.participants[existingIdx],
         ...p,
-        avatar: state.participants[existingIdx].isMe ? state.avatarDataUrl : (p.avatar || state.participants[existingIdx].avatar)
+        avatar: state.participants[existingIdx].isMe
+          ? state.avatarDataUrl
+          : (p.avatar || state.participants[existingIdx].avatar)
       };
     } else {
       state.participants.push(p);
-      playSonicCue(680, 0.06);
+      playSonicCue(680, 0.05);
     }
     renderRoomView();
   }
@@ -1194,12 +1255,15 @@
     const cornerQrBtn = $('btn-corner-qr');
     const counterLabel = $('room-participant-counter');
 
-    if (count <= 1) {
+    // If joining from QR Code or once >= 2 participants are in room, shrink QR code to top-right corner!
+    if (count <= 1 && !state.isJoiningFromQr) {
       counterLabel.textContent = `1 pessoa • Sala #${state.roomSlug} pronta`;
       qrHero.classList.remove('hidden');
       cornerQrBtn.classList.add('hidden');
     } else {
-      counterLabel.textContent = `${count} participantes conectados`;
+      counterLabel.textContent = count > 1
+        ? `${count} participantes conectados`
+        : `Conectado à sala #${state.roomSlug}`;
       qrHero.classList.add('hidden');
       cornerQrBtn.classList.remove('hidden');
     }
@@ -1217,59 +1281,71 @@
           <div class="participant-name">${escapeHtml(p.name)}${p.isMe ? ' (Você)' : ''}</div>
           <div class="participant-lang-name">${escapeHtml(lMeta.nativeName)}</div>
           <div class="participant-status-tag">
-            ${isSpeaking ? '🎙️ Falando agora...' : '🎧 Ouvindo em ' + lMeta.short}
+            ${isSpeaking ? '🎙️ Falando ao vivo...' : '🎧 Ouvindo em ' + lMeta.short}
           </div>
         </div>
       `;
     }).join('');
   }
 
-  function simulateNextParticipantJoin() {
-    const template = SIMULATED_GUESTS[state.guestCursor % SIMULATED_GUESTS.length];
-    state.guestCursor += 1;
-    const uniqueId = `${template.id}-${state.guestCursor}`;
-    const avatar = generateSvgAvatarDataUrl(template.name, template.color);
+  // ==========================================================================
+  // 12. ANTIGRAVITY LIVE BIDIRECTIONAL VOICE ENGINE & NEURAL CLOUD TTS STREAM
+  // ==========================================================================
+  function setMicUiActive(active, modeLabel = '') {
+    const btn = $('btn-fixed-ptt');
+    const micIcon = $('ptt-mic-icon');
+    const waveBars = $('ptt-wave-bars');
+    const myMeta = getLangMeta(state.nativeLang);
 
-    const newGuest = {
-      id: uniqueId,
-      name: template.name,
-      lang: template.lang,
-      avatar,
-      sampleText: template.sampleText,
-      isMe: false,
-      speaking: false
-    };
-
-    addOrUpdateParticipant(newGuest);
-    CloudRelay.publish('participant_join', {
-      roomSlug: state.roomSlug,
-      participant: newGuest
-    });
+    if (active) {
+      btn.classList.add('active-speaking');
+      if (micIcon) micIcon.classList.add('hidden');
+      if (waveBars) waveBars.classList.remove('hidden');
+      $('ptt-main-label').textContent = modeLabel || 'MODO LIVE ATIVO • TOQUE PARA ENVIAR';
+      $('ptt-sub-label').textContent = `Ouvindo sua voz em ${myMeta.flag} ${myMeta.nativeName}...`;
+    } else {
+      btn.classList.remove('active-speaking');
+      if (micIcon) micIcon.classList.remove('hidden');
+      if (waveBars) waveBars.classList.add('hidden');
+      $('ptt-main-label').textContent = 'TOQUE OU SEGURE PARA FALAR';
+      $('ptt-sub-label').textContent = 'Modo Live fluido • Traduz e envia sua voz em tempo real';
+    }
   }
 
-  // ==========================================================================
-  // 12. FIXED BOTTOM PUSH-TO-TALK & VOICE SYNTHESIS ACROSS 50 LANGUAGES
-  // ==========================================================================
-  function startPushToTalk() {
-    if (state.isHoldingPtt) return;
-    unlockMobileAudio();
+  async function publishAndRenderClause(spokenText, optionalAudioDataUrl = null) {
+    const clean = (spokenText || '').trim();
+    if (!clean && !optionalAudioDataUrl) return;
 
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    const clausePayload = {
+      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      speakerId: state.userId,
+      speakerName: state.userName,
+      sourceLang: state.nativeLang,
+      originalText: clean || '🎤 Mensagem de voz direta',
+      audioDataUrl: optionalAudioDataUrl || undefined
+    };
 
-    state.isHoldingPtt = true;
+    // Broadcast lightweight packet over CloudRelay (MQTT + ntfy + BroadcastChannel)
+    CloudRelay.publish('speech_clause', {
+      roomSlug: state.roomSlug,
+      clause: clausePayload
+    });
+
+    await receiveSpeechClause(clausePayload);
+  }
+
+  function startLiveVoiceSession() {
+    if (state.isMicActive) return;
+    unlockMobileAudio(true);
+
+    state.isMicActive = true;
     state.activeSpeakerId = state.userId;
-    state.spokenTranscript = '';
-    playSonicCue(640, 0.05);
+    state.unflushedTranscript = '';
+    state.flushedLength = 0;
 
-    const btn = $('btn-fixed-ptt');
-    btn.classList.add('active-speaking');
-    $('ptt-main-label').textContent = 'GRAVANDO E TRADUZINDO... (SOLTE PARA ENVIAR)';
-    const myMeta = getLangMeta(state.nativeLang);
-    $('ptt-sub-label').textContent = `Ouvindo você em ${myMeta.flag} ${myMeta.nativeName}...`;
-
+    setMicUiActive(true, 'OUVINDO AO VIVO... (TOQUE OU SOLTE PARA ENVIAR)');
     renderRoomView();
+
     CloudRelay.publish('speaking_state', {
       roomSlug: state.roomSlug,
       speakerId: state.userId,
@@ -1283,72 +1359,218 @@
         rec.lang = state.nativeLang;
         rec.continuous = true;
         rec.interimResults = true;
+        rec.maxAlternatives = 1;
+
         rec.onresult = (event) => {
-          let txt = '';
+          let fullTranscript = '';
           for (let i = 0; i < event.results.length; i++) {
-            txt += event.results[i][0].transcript + ' ';
+            fullTranscript += event.results[i][0].transcript + ' ';
           }
-          state.spokenTranscript = txt.trim();
-          if (state.spokenTranscript) {
-            $('ptt-sub-label').textContent = `"${state.spokenTranscript}"`;
+          fullTranscript = fullTranscript.trim();
+          const currentNewPart = fullTranscript.slice(state.flushedLength).trim();
+          state.unflushedTranscript = currentNewPart;
+
+          if (currentNewPart) {
+            $('ptt-sub-label').textContent = `"${currentNewPart}"`;
+            showLiveInterimBanner(state.userName + ' (Você)', state.nativeLang, currentNewPart);
+
+            const now = Date.now();
+            if (now - state.lastInterimSentAt > 420) {
+              state.lastInterimSentAt = now;
+              CloudRelay.publish('live_interim', {
+                roomSlug: state.roomSlug,
+                speakerId: state.userId,
+                speakerName: state.userName,
+                sourceLang: state.nativeLang,
+                text: currentNewPart
+              });
+            }
+
+            // Antigravity Live Clause Streaming: if user pauses for 1.15s in hands-free Live mode, stream the clause immediately!
+            if (state.silenceFlushTimer) clearTimeout(state.silenceFlushTimer);
+            state.silenceFlushTimer = setTimeout(() => {
+              if (state.isMicActive && state.isLiveHandsFree && state.unflushedTranscript.trim().length >= 3) {
+                const toSend = state.unflushedTranscript.trim();
+                state.flushedLength = fullTranscript.length;
+                state.unflushedTranscript = '';
+                hideLiveInterimBanner();
+                publishAndRenderClause(toSend);
+              }
+            }, 1150);
           }
         };
-        rec.onerror = () => {};
+
+        rec.onerror = (ev) => {
+          if (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
+            $('ptt-sub-label').textContent = '⚠️ Permita o acesso ao microfone no navegador ou use o botão Texto';
+            cancelLiveVoiceSession();
+          }
+        };
+
+        rec.onend = () => {
+          // If still in hands-free Live mode, seamlessly restart recognition
+          if (state.isMicActive && state.isLiveHandsFree && state.speechRecognition === rec) {
+            try { rec.start(); } catch (_) {}
+          }
+        };
+
         rec.start();
         state.speechRecognition = rec;
+        return;
       } catch (_) {}
+    }
+
+    // Fallback for browsers without SpeechRecognition: capture direct compressed voice clip via MediaRecorder
+    startDirectAudioRecorderFallback();
+  }
+
+  async function startDirectAudioRecorderFallback() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('ptt-sub-label').textContent = '⚠️ Microfone indisponível neste navegador — use o botão Texto ao lado';
+      setTimeout(cancelLiveVoiceSession, 1800);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      state.micStream = stream;
+      state.recordedChunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 16000 })
+        : new MediaRecorder(stream);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) state.recordedChunks.push(e.data);
+      };
+      recorder.start(200);
+      state.mediaRecorder = recorder;
+      $('ptt-sub-label').textContent = '🎙️ Gravando áudio direto (solte ou toque para enviar)...';
+    } catch (_) {
+      $('ptt-sub-label').textContent = '⚠️ Permissão de microfone negada — libere o microfone na barra de endereço';
+      setTimeout(cancelLiveVoiceSession, 1800);
     }
   }
 
-  async function stopPushToTalk() {
-    if (!state.isHoldingPtt) return;
-    state.isHoldingPtt = false;
+  function cancelLiveVoiceSession() {
+    if (state.silenceFlushTimer) clearTimeout(state.silenceFlushTimer);
+    state.isMicActive = false;
+    state.isLiveHandsFree = false;
     state.activeSpeakerId = null;
-
     if (state.speechRecognition) {
-      try { state.speechRecognition.stop(); } catch (_) {}
+      const rec = state.speechRecognition;
       state.speechRecognition = null;
+      try { rec.abort(); } catch (_) {}
     }
-
-    const btn = $('btn-fixed-ptt');
-    btn.classList.remove('active-speaking');
-    $('ptt-main-label').textContent = 'SEGURE PARA FALAR';
-    $('ptt-sub-label').textContent = 'Tradução automática instantânea para o idioma de cada ouvinte';
-
-    playSonicCue(420, 0.05);
+    if (state.mediaRecorder) {
+      try { state.mediaRecorder.stop(); } catch (_) {}
+      state.mediaRecorder = null;
+    }
+    if (state.micStream) {
+      state.micStream.getTracks().forEach(t => t.stop());
+      state.micStream = null;
+    }
+    hideLiveInterimBanner();
+    setMicUiActive(false);
     renderRoomView();
     CloudRelay.publish('speaking_state', {
       roomSlug: state.roomSlug,
       speakerId: state.userId,
       speaking: false
     });
+  }
 
-    let finalSpeech = state.spokenTranscript.trim();
-    if (!finalSpeech) {
-      const myMeta = getLangMeta(state.nativeLang);
-      const item = CONVERSATION_CORPUS[state.hostClauseCursor % CONVERSATION_CORPUS.length];
-      state.hostClauseCursor += 1;
-      finalSpeech = item[myMeta.code] || item[myMeta.iso] || item.pt;
+  async function stopLiveVoiceSession() {
+    if (!state.isMicActive) return;
+    if (state.silenceFlushTimer) clearTimeout(state.silenceFlushTimer);
+
+    state.isMicActive = false;
+    state.isLiveHandsFree = false;
+    state.activeSpeakerId = null;
+
+    setMicUiActive(false);
+    hideLiveInterimBanner();
+    renderRoomView();
+
+    CloudRelay.publish('speaking_state', {
+      roomSlug: state.roomSlug,
+      speakerId: state.userId,
+      speaking: false
+    });
+
+    // 1. If SpeechRecognition was active, wait for final onresult/onend flush (up to 480ms) before reading transcript!
+    if (state.speechRecognition) {
+      const rec = state.speechRecognition;
+      state.speechRecognition = null;
+
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (!done) {
+            done = true;
+            resolve();
+          }
+        };
+        const prevOnEnd = rec.onend;
+        rec.onend = (e) => {
+          if (prevOnEnd) {
+            try { prevOnEnd(e); } catch (_) {}
+          }
+          finish();
+        };
+        setTimeout(finish, 480);
+        try { rec.stop(); } catch (_) { finish(); }
+      });
+
+      const finalSpeech = state.unflushedTranscript.trim();
+      state.unflushedTranscript = '';
+
+      if (finalSpeech) {
+        playSonicCue(520, 0.04);
+        await publishAndRenderClause(finalSpeech);
+      } else {
+        $('ptt-sub-label').textContent = 'Toque para ativar o Modo Live e fale próximo ao microfone';
+      }
+      return;
     }
 
-    const clausePayload = {
-      id: 'msg-' + Date.now(),
-      speakerId: state.userId,
-      speakerName: state.userName,
-      speakerAvatar: state.avatarThumbUrl || state.avatarDataUrl,
-      sourceLang: state.nativeLang,
-      originalText: finalSpeech
-    };
+    // 2. If MediaRecorder fallback was active, package voice clip & send bidirectionally
+    if (state.mediaRecorder) {
+      const rec = state.mediaRecorder;
+      state.mediaRecorder = null;
 
-    CloudRelay.publish('speech_clause', {
-      roomSlug: state.roomSlug,
-      clause: clausePayload
-    });
+      await new Promise((resolve) => {
+        rec.onstop = resolve;
+        setTimeout(resolve, 400);
+        try { rec.stop(); } catch (_) { resolve(); }
+      });
 
-    await receiveSpeechClause({
-      ...clausePayload,
-      speakerAvatar: state.avatarDataUrl
-    });
+      if (state.micStream) {
+        state.micStream.getTracks().forEach(t => t.stop());
+        state.micStream = null;
+      }
+
+      if (state.recordedChunks.length > 0) {
+        const blob = new Blob(state.recordedChunks, { type: rec.mimeType || 'audio/webm' });
+        state.recordedChunks = [];
+        if (blob.size > 200 && blob.size < 95000) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (reader.result) {
+              publishAndRenderClause('', reader.result);
+            }
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    }
+  }
+
+  function resolveSpeakerAvatar(speakerId, speakerName) {
+    const found = state.participants.find(p => p.id === speakerId);
+    if (found && found.avatar) return found.avatar;
+    return generateSvgAvatarDataUrl(speakerName || 'Participante', '#0EA5E9');
   }
 
   async function receiveSpeechClause(payload) {
@@ -1360,16 +1582,25 @@
       const otherGuest = state.participants.find(p => !p.isMe && p.lang !== state.nativeLang);
       if (otherGuest) {
         targetLang = otherGuest.lang;
-      } else if (state.nativeLang.startsWith('pt')) {
-        targetLang = 'en-US';
       } else {
-        targetLang = 'pt-BR';
+        const anyGuest = state.participants.find(p => !p.isMe);
+        if (anyGuest) {
+          targetLang = anyGuest.lang;
+        } else if (state.nativeLang.startsWith('pt')) {
+          targetLang = 'en-US';
+        } else {
+          targetLang = 'pt-BR';
+        }
       }
     }
 
-    const translatedText = await translateUniversalAsync(payload.originalText, payload.sourceLang, targetLang);
+    const translatedText = payload.audioDataUrl
+      ? payload.originalText
+      : await translateUniversalAsync(payload.originalText, payload.sourceLang, targetLang);
+
     const srcMeta = getLangMeta(payload.sourceLang);
     const tgtMeta = getLangMeta(targetLang);
+    const avatarUrl = payload.speakerAvatar || resolveSpeakerAvatar(payload.speakerId, payload.speakerName);
 
     const feed = $('conversation-feed');
     const card = document.createElement('div');
@@ -1378,7 +1609,7 @@
     card.setAttribute('tabindex', '0');
     card.setAttribute('title', 'Toque para ouvir novamente esta tradução');
     card.innerHTML = `
-      <img class="speech-card-avatar" src="${payload.speakerAvatar || generateSvgAvatarDataUrl(payload.speakerName)}" alt="${escapeHtml(payload.speakerName)}" />
+      <img class="speech-card-avatar" src="${avatarUrl}" alt="${escapeHtml(payload.speakerName)}" />
       <div class="speech-card-body">
         <div class="speech-card-meta">
           <strong>${escapeHtml(payload.speakerName)} (${srcMeta.flag} ${srcMeta.short}) → ${tgtMeta.flag} ${escapeHtml(tgtMeta.short)}</strong>
@@ -1389,11 +1620,14 @@
       </div>
     `;
 
-    // Click / tap anywhere on the conversation history card to listen again
     const replayCardAudio = () => {
-      unlockMobileAudio();
+      unlockMobileAudio(false);
       playSonicCue(560, 0.04);
-      speakTts(translatedText, tgtMeta.code, card);
+      if (payload.audioDataUrl) {
+        playDirectAudioDataUrl(payload.audioDataUrl, card);
+      } else {
+        NeuralVoiceEngine.enqueue(translatedText, tgtMeta.code, card, true);
+      }
     };
 
     card.addEventListener('click', replayCardAudio);
@@ -1406,10 +1640,14 @@
 
     feed.prepend(card);
 
-    // Speak out loud on listeners' phones (or on single-device demo if only 1 real phone is in room)
-    const hasRealRemoteParticipants = state.participants.some(p => !p.isMe && !String(p.id).startsWith('guest-'));
-    if (payload.speakerId !== state.userId || !hasRealRemoteParticipants) {
-      speakTts(translatedText, tgtMeta.code, card);
+    // Play out loud automatically on receiving phones (or when testing solo on 1 device)
+    const hasRemoteParticipants = state.participants.some(p => !p.isMe);
+    if (payload.speakerId !== state.userId || !hasRemoteParticipants) {
+      if (payload.audioDataUrl) {
+        playDirectAudioDataUrl(payload.audioDataUrl, card);
+      } else {
+        NeuralVoiceEngine.enqueue(translatedText, tgtMeta.code, card, false);
+      }
     }
   }
 
@@ -1421,103 +1659,220 @@
     });
   }
 
-  function speakTts(text, langCode, activeCard = null) {
+  function playDirectAudioDataUrl(dataUrl, activeCard) {
     clearAllReplayingCards();
-
     let badge = null;
     if (activeCard) {
       activeCard.classList.add('replaying');
       badge = activeCard.querySelector('.speech-replay-badge');
       if (badge) badge.textContent = '🔊 Ouvindo...';
     }
-
-    const onDone = () => {
+    const done = () => {
       if (activeCard) {
         activeCard.classList.remove('replaying');
         if (badge) badge.textContent = '🔊 Ouvir';
       }
     };
-
-    if (!('speechSynthesis' in window)) {
-      setTimeout(onDone, 1200);
-      return;
-    }
-
     try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = langCode;
-      utter.rate = 1.03;
-      const voices = window.speechSynthesis.getVoices();
-      const exact = voices.find(v => v.lang.toLowerCase() === langCode.toLowerCase());
-      const prefix = langCode.split('-')[0].toLowerCase();
-      const fallbackVoice = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
-      if (exact || fallbackVoice) utter.voice = exact || fallbackVoice;
-
-      let finished = false;
-      const fallbackMs = Math.min(8000, Math.max(1500, text.length * 65));
-      const timer = setTimeout(() => {
-        if (!finished) {
-          finished = true;
-          onDone();
-        }
-      }, fallbackMs);
-
-      utter.onend = () => {
-        if (!finished) {
-          finished = true;
-          clearTimeout(timer);
-          onDone();
-        }
-      };
-      utter.onerror = () => {
-        if (!finished) {
-          finished = true;
-          clearTimeout(timer);
-          onDone();
-        }
-      };
-
-      window.speechSynthesis.speak(utter);
+      const audio = new Audio(dataUrl);
+      audio.onended = done;
+      audio.onerror = done;
+      audio.play().catch(done);
     } catch (_) {
-      setTimeout(onDone, 1200);
+      done();
     }
   }
 
-  function simulateForeignParticipantSpeech() {
-    unlockMobileAudio();
-    let guest = state.participants.find(p => !p.isMe);
-    if (!guest) {
-      simulateNextParticipantJoin();
-      guest = state.participants.find(p => !p.isMe);
+  // ==========================================================================
+  // 13. ANTIGRAVITY LIVE NEURAL VOICE ENGINE (CLOUD WAVENET + FIFO QUEUE + HD DEVICE VOICE)
+  // ==========================================================================
+  const NeuralVoiceEngine = (() => {
+    const queue = [];
+    let isPlaying = false;
+
+    function splitIntoNaturalChunks(text, maxLen = 170) {
+      const clean = (text || '').trim();
+      if (!clean) return [];
+      if (clean.length <= maxLen) return [clean];
+
+      const rawParts = clean.match(/[^.!?¡¿,;]+[.!?¡¿,;]*/g) || [clean];
+      const chunks = [];
+      let current = '';
+
+      for (const part of rawParts) {
+        const trimmed = part.trim();
+        if (!trimmed) continue;
+        if ((current + ' ' + trimmed).trim().length <= maxLen) {
+          current = (current + ' ' + trimmed).trim();
+        } else {
+          if (current) chunks.push(current);
+          if (trimmed.length <= maxLen) {
+            current = trimmed;
+          } else {
+            for (let i = 0; i < trimmed.length; i += maxLen) {
+              chunks.push(trimmed.slice(i, i + maxLen));
+            }
+            current = '';
+          }
+        }
+      }
+      if (current) chunks.push(current);
+      return chunks;
     }
-    if (!guest) return;
 
-    state.activeSpeakerId = guest.id;
-    renderRoomView();
+    function playViaCloudNeuralStream(chunkText, langCode, playbackRate) {
+      return new Promise((resolve) => {
+        try {
+          const meta = getLangMeta(langCode);
+          // Google Cloud Neural TTS language tag (preserve zh-CN, zh-TW, pt-BR, or ISO code)
+          const tl = ['zh-CN', 'zh-TW', 'pt-BR', 'pt-PT', 'en-US', 'en-GB', 'es-ES', 'es-MX', 'fr-FR', 'fr-CA'].includes(meta.code)
+            ? meta.code
+            : meta.iso;
+          const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${encodeURIComponent(tl)}&q=${encodeURIComponent(chunkText)}`;
 
-    const gMeta = getLangMeta(guest.lang);
-    const corpusItem = CONVERSATION_CORPUS[Math.floor(Math.random() * CONVERSATION_CORPUS.length)];
-    const spokenText = corpusItem[gMeta.code] || corpusItem[gMeta.iso] || guest.sampleText || corpusItem.en;
+          const audio = state.sharedAudioEl || new Audio();
+          state.sharedAudioEl = audio;
+          audio.referrerPolicy = 'no-referrer';
+          audio.src = url;
+          audio.playbackRate = playbackRate;
 
-    setTimeout(() => {
-      state.activeSpeakerId = null;
-      renderRoomView();
-      const clause = {
-        id: 'msg-' + Date.now(),
-        speakerId: guest.id,
-        speakerName: guest.name,
-        speakerAvatar: guest.avatar,
-        sourceLang: guest.lang,
-        originalText: spokenText
-      };
-      receiveSpeechClause(clause);
-      CloudRelay.publish('speech_clause', {
-        roomSlug: state.roomSlug,
-        clause
+          let settled = false;
+          const finish = (ok) => {
+            if (settled) return;
+            settled = true;
+            audio.onended = null;
+            audio.onerror = null;
+            resolve(ok);
+          };
+
+          const timeoutMs = Math.min(9000, Math.max(2200, chunkText.length * 75));
+          const timer = setTimeout(() => finish(true), timeoutMs);
+
+          audio.onended = () => {
+            clearTimeout(timer);
+            finish(true);
+          };
+          audio.onerror = () => {
+            clearTimeout(timer);
+            finish(false);
+          };
+
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {
+              clearTimeout(timer);
+              finish(false);
+            });
+          }
+        } catch (_) {
+          resolve(false);
+        }
       });
-    }, 1050);
-  }
+    }
+
+    function playViaRankedDeviceNeuralVoice(text, langCode, playbackRate) {
+      return new Promise((resolve) => {
+        if (!('speechSynthesis' in window)) {
+          setTimeout(resolve, 800);
+          return;
+        }
+        try {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = langCode;
+          utter.rate = playbackRate;
+          utter.pitch = 1.0;
+
+          const bestVoice = pickBestNeuralDeviceVoice(langCode);
+          if (bestVoice) utter.voice = bestVoice;
+
+          let finished = false;
+          const done = () => {
+            if (!finished) {
+              finished = true;
+              resolve();
+            }
+          };
+
+          const fallbackMs = Math.min(8500, Math.max(1500, text.length * 65));
+          const timer = setTimeout(done, fallbackMs);
+
+          utter.onend = () => {
+            clearTimeout(timer);
+            done();
+          };
+          utter.onerror = () => {
+            clearTimeout(timer);
+            done();
+          };
+
+          window.speechSynthesis.speak(utter);
+        } catch (_) {
+          resolve();
+        }
+      });
+    }
+
+    async function processQueue() {
+      if (isPlaying) return;
+      isPlaying = true;
+
+      while (queue.length > 0) {
+        const item = queue.shift();
+        const { text, langCode, activeCard } = item;
+        // Dynamic speed catch-up (1.12x when queue has backlog, 1.05x normal Antigravity Live cadence)
+        const rate = queue.length >= 1 ? 1.12 : 1.05;
+
+        clearAllReplayingCards();
+        let badge = null;
+        if (activeCard) {
+          activeCard.classList.add('replaying');
+          badge = activeCard.querySelector('.speech-replay-badge');
+          if (badge) badge.textContent = '🔊 Ouvindo...';
+        }
+
+        const chunks = splitIntoNaturalChunks(text);
+        let cloudSucceeded = true;
+
+        for (const chunk of chunks) {
+          const ok = await playViaCloudNeuralStream(chunk, langCode, rate);
+          if (!ok) {
+            cloudSucceeded = false;
+            break;
+          }
+        }
+
+        if (!cloudSucceeded) {
+          await playViaRankedDeviceNeuralVoice(text, langCode, rate);
+        }
+
+        if (activeCard) {
+          activeCard.classList.remove('replaying');
+          if (badge) badge.textContent = '🔊 Ouvir';
+        }
+      }
+
+      isPlaying = false;
+    }
+
+    function enqueue(text, langCode, activeCard = null, immediateInterrupt = false) {
+      if (!text || !text.trim()) return;
+      if (immediateInterrupt) {
+        queue.length = 0;
+        if (state.sharedAudioEl) {
+          try { state.sharedAudioEl.pause(); } catch (_) {}
+        }
+        if ('speechSynthesis' in window) {
+          try { window.speechSynthesis.cancel(); } catch (_) {}
+        }
+        isPlaying = false;
+      }
+      queue.push({ text, langCode, activeCard });
+      processQueue();
+    }
+
+    return { enqueue };
+  })();
 
   async function sendWrittenMessage() {
     const input = $('input-text-message');
@@ -1525,31 +1880,13 @@
     const text = input.value.trim();
     if (!text) return;
 
-    unlockMobileAudio();
+    unlockMobileAudio(false);
     input.value = '';
-
-    const clausePayload = {
-      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
-      speakerId: state.userId,
-      speakerName: state.userName,
-      speakerAvatar: state.avatarThumbUrl || state.avatarDataUrl,
-      sourceLang: state.nativeLang,
-      originalText: text
-    };
-
-    CloudRelay.publish('speech_clause', {
-      roomSlug: state.roomSlug,
-      clause: clausePayload
-    });
-
-    await receiveSpeechClause({
-      ...clausePayload,
-      speakerAvatar: state.avatarDataUrl
-    });
+    await publishAndRenderClause(text);
   }
 
   // ==========================================================================
-  // 13. EVENT BINDINGS
+  // 14. EVENT BINDINGS (ANTIGRAVITY LIVE TAP + HOLD + BIDIRECTIONAL RECOVERY)
   // ==========================================================================
   function bindEvents() {
     $('btn-camera-selfie').addEventListener('click', handleCameraButton);
@@ -1592,7 +1929,7 @@
         try {
           await navigator.share({
             title: `Sala Omnivox: ${state.roomName}`,
-            text: `Entre na sala "${state.roomName}" para conversarmos com tradução simultânea:`,
+            text: `Entre na sala "${state.roomName}" para conversarmos com tradução simultânea Live:`,
             url: shareUrl
           });
           return;
@@ -1616,10 +1953,6 @@
       setTimeout(() => { $('lbl-copy-link').textContent = '🔗 Copiar Link'; }, 1800);
     });
 
-    $('btn-simulate-first-guest').addEventListener('click', simulateNextParticipantJoin);
-    $('btn-add-simulated-guest').addEventListener('click', simulateNextParticipantJoin);
-    $('btn-sim-guest-speak').addEventListener('click', simulateForeignParticipantSpeech);
-
     $('btn-corner-qr').addEventListener('click', () => {
       $('qr-modal').classList.remove('hidden');
     });
@@ -1630,23 +1963,67 @@
       if (e.target === $('qr-modal')) $('qr-modal').classList.add('hidden');
     });
 
+    // Antigravity Live Dual-Gesture Microphone Button (Supports BOTH Tap-to-Live AND Hold-to-Talk!)
     const pttBtn = $('btn-fixed-ptt');
-    pttBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      startPushToTalk();
-    });
-    window.addEventListener('mouseup', () => {
-      if (state.isHoldingPtt) stopPushToTalk();
-    });
+    let pointerActive = false;
 
-    pttBtn.addEventListener('touchstart', (e) => {
+    const handlePressStart = (e) => {
       e.preventDefault();
-      startPushToTalk();
-    }, { passive: false });
-    pttBtn.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      if (state.isHoldingPtt) stopPushToTalk();
-    }, { passive: false });
+      if (pointerActive) return;
+      pointerActive = true;
+      state.pressStartTime = Date.now();
+
+      // If already in hands-free Live mode, tapping again finishes and sends!
+      if (state.isMicActive) {
+        state.isEndingOnTap = true;
+        return;
+      }
+
+      state.isEndingOnTap = false;
+      state.isLiveHandsFree = false;
+      startLiveVoiceSession();
+    };
+
+    const handlePressEnd = (e) => {
+      if (!pointerActive) return;
+      if (e) e.preventDefault();
+      pointerActive = false;
+
+      if (state.isEndingOnTap) {
+        state.isEndingOnTap = false;
+        stopLiveVoiceSession();
+        return;
+      }
+
+      const pressDuration = Date.now() - state.pressStartTime;
+      if (pressDuration < 420) {
+        // Quick tap (<420ms) -> Keep mic open in Antigravity Live Hands-Free Mode!
+        if (state.isMicActive) {
+          state.isLiveHandsFree = true;
+          setMicUiActive(true, 'MODO LIVE ATIVO • TOQUE PARA ENVIAR');
+        }
+      } else {
+        // Held down (>=420ms) and released -> Flush and send immediately!
+        stopLiveVoiceSession();
+      }
+    };
+
+    const handlePressCancel = () => {
+      if (!pointerActive) return;
+      pointerActive = false;
+      // When mobile OS steals touch to display "Allow Microphone?" dialog, keep Live mode open or reset cleanly
+      if (state.isMicActive) {
+        state.isLiveHandsFree = true;
+        setMicUiActive(true, 'MODO LIVE ATIVO • TOQUE PARA ENVIAR');
+      }
+    };
+
+    pttBtn.addEventListener('mousedown', handlePressStart);
+    window.addEventListener('mouseup', handlePressEnd);
+
+    pttBtn.addEventListener('touchstart', handlePressStart, { passive: false });
+    pttBtn.addEventListener('touchend', handlePressEnd, { passive: false });
+    pttBtn.addEventListener('touchcancel', handlePressCancel, { passive: false });
 
     const btnToggleChat = $('btn-toggle-text-chat');
     const chatDrawer = $('text-chat-drawer');
@@ -1668,8 +2045,27 @@
       }
     });
 
+    // Re-sync immediately when phone returns from permission prompt or lock screen
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state.inRoom) {
+        CloudRelay.pollNow();
+        broadcastMyPresence();
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (state.inRoom) {
+        CloudRelay.pollNow();
+        broadcastMyPresence();
+      }
+    });
+
+    // Unlock audio output on any interaction inside the room
+    $('room-screen')?.addEventListener('touchstart', () => {
+      if (!state.isMicActive) unlockMobileAudio(true);
+    }, { passive: true });
+
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.7').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.8').catch(() => {});
     }
   }
 

@@ -8,12 +8,13 @@
   <meta name="theme-color" content="#070B10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=0.7" />
+  <link rel="stylesheet" href="./styles.css?v=0.8" />
 </head>
 <body>
   <!-- ======================================================================
@@ -42,7 +43,7 @@
       <div class="splash-progress-fill"></div>
     </div>
 
-    <div id="splash-version-badge" class="splash-version-badge">v0.7</div>
+    <div id="splash-version-badge" class="splash-version-badge">v0.8</div>
   </section>
 
   <!-- ======================================================================
@@ -56,7 +57,7 @@
       <header class="setup-header">
         <div class="setup-brand-pill">
           <span class="live-dot"></span>
-          <span>OMNIVOX v0.7 • 50 IDIOMAS DISPONÍVEIS</span>
+          <span>OMNIVOX v0.8 • NEURAL LIVE AUDIO</span>
         </div>
         <h1 id="setup-main-title">Criar Nova Sala</h1>
         <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
@@ -229,42 +230,42 @@
             <span id="lbl-copy-link">🔗 Copiar Link</span>
           </button>
         </div>
-
-        <div class="simulate-join-bar">
-          <span>Testando sozinho neste aparelho?</span>
-          <button type="button" id="btn-simulate-first-guest" class="btn-chip">
-            <span>👋 Simular Entrada de Participante</span>
-          </button>
-        </div>
       </div>
 
       <!-- STATE B: PARTICIPANTS WITH AVATARS & LANGUAGES + TRANSLATION FEED -->
       <div id="participants-stage" class="participants-stage">
         <div class="stage-section-header">
           <span>Participantes na Sala</span>
-          <button type="button" id="btn-add-simulated-guest" class="btn-chip" style="padding: 0.25rem 0.65rem; font-size: 0.7rem;">
-            + Simular +1 Pessoa
-          </button>
+          <span id="sync-status-pill" class="sync-status-pill">⚡ Bidirecional Ativo</span>
         </div>
 
         <div id="participants-grid" class="participants-grid"></div>
 
         <!-- LIVE SPEECH TRANSLATION STREAM -->
         <div class="stage-section-header" style="margin-top: 0.35rem;">
-          <span>Tradução Simultânea ao Vivo</span>
-          <button type="button" id="btn-sim-guest-speak" class="btn-chip" style="padding: 0.25rem 0.65rem; font-size: 0.7rem;">
-            🔊 Ouvir Participante Falando
-          </button>
+          <span>Tradução Simultânea Live</span>
+          <span id="neural-engine-badge" class="neural-engine-badge">✨ Voz Neural Live</span>
+        </div>
+
+        <!-- REALTIME LIVE SUBTITLE STREAM BANNER (Appears while anyone is speaking) -->
+        <div id="live-interim-banner" class="live-interim-banner hidden">
+          <div class="live-orb-mini">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div class="live-interim-content">
+            <div id="live-interim-speaker" class="live-interim-speaker">Captando voz...</div>
+            <div id="live-interim-text" class="live-interim-text">Fale naturalmente...</div>
+          </div>
         </div>
 
         <div id="conversation-feed" class="conversation-feed">
           <div id="feed-empty-hint" style="text-align: center; padding: 1.35rem 1rem; color: var(--text-muted); font-size: 0.82rem; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px dashed var(--border-subtle);">
-            Segure o botão <strong>Falar</strong> fixo abaixo (ou toque em <em>"Ouvir Participante Falando"</em>) para conversar com tradução simultânea.
+            Toque no botão <strong>Falar (Live)</strong> abaixo (ou segure para falar) para conversar com tradução simultânea bidirecional.
           </div>
         </div>
       </div>
 
-      <!-- FIXED BOTTOM PUSH-TO-TALK BAR + DISCREET TEXT CHAT OPTION -->
+      <!-- FIXED BOTTOM ANTIGRAVITY LIVE VOICE BAR + DISCREET TEXT CHAT OPTION -->
       <div class="fixed-ptt-bar">
         <div class="fixed-ptt-inner">
           <!-- EXPANDABLE TEXT CHAT DRAWER (Hidden by default, opened by discreet keyboard button) -->
@@ -282,14 +283,19 @@
           <div class="ptt-bottom-row">
             <button type="button" id="btn-fixed-ptt" class="ptt-hold-btn">
               <div class="ptt-btn-main">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" x2="12" y1="19" y2="22"/>
-                </svg>
-                <span id="ptt-main-label">SEGURE PARA FALAR</span>
+                <div id="ptt-live-orb" class="ptt-live-orb">
+                  <svg id="ptt-mic-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" x2="12" y1="19" y2="22"/>
+                  </svg>
+                  <div id="ptt-wave-bars" class="ptt-wave-bars hidden">
+                    <span></span><span></span><span></span><span></span><span></span>
+                  </div>
+                </div>
+                <span id="ptt-main-label">TOQUE OU SEGURE PARA FALAR</span>
               </div>
-              <span id="ptt-sub-label" class="ptt-btn-sub">Tradução automática instantânea para o idioma de cada ouvinte</span>
+              <span id="ptt-sub-label" class="ptt-btn-sub">Modo Live fluido • Traduz e envia sua voz em tempo real</span>
             </button>
 
             <!-- DISCREET BUTTON TO OPEN WRITTEN CONVERSATION INPUT -->
@@ -314,7 +320,7 @@
       <div class="lang-modal-header">
         <div>
           <h3 id="lang-modal-title">Selecionar Idioma (50 disponíveis)</h3>
-          <p style="font-size: 0.74rem; color: var(--text-secondary);">Reconhecimento de voz + tradução neural + síntese de áudio</p>
+          <p style="font-size: 0.74rem; color: var(--text-secondary);">Reconhecimento de voz Live + tradução neural + síntese de áudio fluida</p>
         </div>
         <button type="button" id="btn-close-lang-modal" class="btn-chip" style="padding: 0.32rem 0.7rem;">Fechar ✕</button>
       </div>
@@ -357,6 +363,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=0.7"></script>
+  <script src="./app.js?v=0.8"></script>
 </body>
 </html>
