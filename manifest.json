@@ -1,19 +1,44 @@
 {
+  "id": "./",
   "name": "Omnivox — Tradução Simultânea Multidirecional",
   "short_name": "Omnivox",
-  "description": "PWA de tradução simultânea em tempo real via QR Code e Push-to-Talk com baixa latência.",
+  "description": "PWA de tradução simultânea em tempo real via QR Code e Modo Live em 50 idiomas.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0A0E13",
-  "theme_color": "#0A0E13",
+  "background_color": "#070B10",
+  "theme_color": "#070B10",
   "orientation": "portrait",
   "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

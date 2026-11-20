@@ -1,8 +1,14 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = 'v0.10';
+  const APP_VERSION = 'v0.11';
   const THEME_STORAGE_KEY = 'app_ui_theme';
+  let deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
 
   // ==========================================================================
   // 1. COMPLETE 50-LANGUAGE GLOBAL CATALOG (BCP-47 + REGIONS + SAMPLES)
@@ -1959,10 +1965,132 @@
   }
 
   // ==========================================================================
-  // 15. EVENT BINDINGS (ANTIGRAVITY LIVE TAP + HOLD + BIDIRECTIONAL RECOVERY)
+  // 15. PWA INSTALLATION MANAGER (TOP-LEFT 5s FAB + SETUP BANNER + iOS/ANDROID MODAL)
+  // ==========================================================================
+  let pwaFabCollapseTimer = null;
+
+  function isPwaStandalone() {
+    return (
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      (window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches) ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function isIosDevice() {
+    const ua = window.navigator.userAgent || '';
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
+    const isIpadOs = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return isAppleMobile || isIpadOs;
+  }
+
+  function expandPwaFabFor5Seconds() {
+    const fab = $('btn-pwa-install-fab');
+    if (!fab || fab.classList.contains('hidden')) return;
+    fab.classList.remove('collapsed');
+    if (pwaFabCollapseTimer) clearTimeout(pwaFabCollapseTimer);
+    pwaFabCollapseTimer = setTimeout(() => {
+      fab.classList.add('collapsed');
+    }, 5000);
+  }
+
+  function updatePwaInstallUiVisibility() {
+    const fab = $('btn-pwa-install-fab');
+    const banner = $('pwa-install-banner');
+    const sub = $('pwa-banner-subtitle');
+
+    if (isPwaStandalone()) {
+      document.body.classList.remove('pwa-installable');
+      if (fab) fab.classList.add('hidden');
+      if (banner) banner.classList.add('hidden');
+      return;
+    }
+
+    document.body.classList.add('pwa-installable');
+    if (fab) fab.classList.remove('hidden');
+    if (banner) banner.classList.remove('hidden');
+
+    if (sub) {
+      if (deferredInstallPrompt) {
+        sub.textContent = 'Instalação rápida com 1 toque na tela inicial';
+      } else if (isIosDevice()) {
+        sub.textContent = 'Adicione à Tela de Início do iPhone em 2 passos';
+      } else {
+        sub.textContent = 'Acesso direto em tela cheia na tela inicial';
+      }
+    }
+
+    expandPwaFabFor5Seconds();
+  }
+
+  async function handlePwaInstallClick() {
+    expandPwaFabFor5Seconds();
+
+    // 1. If native Chromium/Android beforeinstallprompt is ready, trigger 1-tap OS install dialog
+    if (deferredInstallPrompt) {
+      try {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        if (choice && choice.outcome === 'accepted') {
+          document.body.classList.remove('pwa-installable');
+          $('btn-pwa-install-fab')?.classList.add('hidden');
+          $('pwa-install-banner')?.classList.add('hidden');
+        }
+        return;
+      } catch (_) {
+        deferredInstallPrompt = null;
+      }
+    }
+
+    // 2. Otherwise (iOS Safari or browser where native prompt was already used), open Guided Install Modal
+    const modal = $('pwa-install-modal');
+    const iosSteps = $('pwa-steps-ios');
+    const androidSteps = $('pwa-steps-android');
+    if (!modal) return;
+
+    if (isIosDevice()) {
+      iosSteps?.classList.remove('hidden');
+      androidSteps?.classList.add('hidden');
+    } else {
+      iosSteps?.classList.add('hidden');
+      androidSteps?.classList.remove('hidden');
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  function closePwaInstallModal() {
+    $('pwa-install-modal')?.classList.add('hidden');
+  }
+
+  // ==========================================================================
+  // 16. EVENT BINDINGS (ANTIGRAVITY LIVE TAP + HOLD + BIDIRECTIONAL RECOVERY)
   // ==========================================================================
   function bindEvents() {
     $('btn-theme-toggle')?.addEventListener('click', toggleUiTheme);
+
+    $('btn-pwa-install-fab')?.addEventListener('click', handlePwaInstallClick);
+    $('btn-pwa-install-banner')?.addEventListener('click', handlePwaInstallClick);
+    $('btn-close-pwa-modal')?.addEventListener('click', closePwaInstallModal);
+    $('btn-ok-pwa-modal')?.addEventListener('click', closePwaInstallModal);
+    $('pwa-install-modal')?.addEventListener('click', (e) => {
+      if (e.target === $('pwa-install-modal')) closePwaInstallModal();
+    });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      updatePwaInstallUiVisibility();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      closePwaInstallModal();
+      document.body.classList.remove('pwa-installable');
+      $('btn-pwa-install-fab')?.classList.add('hidden');
+      $('pwa-install-banner')?.classList.add('hidden');
+    });
 
     $('btn-camera-selfie').addEventListener('click', handleCameraButton);
     $('btn-upload-photo').addEventListener('click', () => $('input-file-photo').click());
@@ -2140,7 +2268,7 @@
     }, { passive: true });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=0.10').catch(() => {});
+      navigator.serviceWorker.register('./sw.js?v=0.11').catch(() => {});
     }
   }
 
@@ -2154,7 +2282,13 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     applyUiTheme(getSavedUiTheme(), true);
+    updatePwaInstallUiVisibility();
     bindEvents();
     initSplashAndUrl();
+    // Re-expand both top pills for 5 seconds when Splash Screen transitions to Setup Screen
+    setTimeout(() => {
+      expandThemeButtonFor5Seconds();
+      expandPwaFabFor5Seconds();
+    }, 4100);
   });
 })();

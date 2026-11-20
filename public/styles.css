@@ -1640,3 +1640,258 @@ button, input, select {
   text-align: center;
   box-shadow: var(--card-shadow);
 }
+
+/* ============================================================================
+   5. PWA INSTALL BUTTON (TOP-LEFT 5s AUTO-COLLAPSE FAB + SETUP BANNER + MODAL)
+   ============================================================================ */
+.pwa-install-fab {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 120;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: var(--theme-fab-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--accent-emerald);
+  box-shadow: var(--theme-fab-shadow);
+  color: var(--theme-fab-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    padding 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.12s ease;
+}
+
+.pwa-install-fab:hover {
+  background: var(--accent-emerald-soft);
+}
+
+.pwa-install-fab:active {
+  transform: scale(0.95);
+}
+
+.pwa-install-fab:focus-visible {
+  outline: 2px solid var(--accent-emerald);
+  outline-offset: 2px;
+}
+
+.pwa-install-icon-wrap {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-emerald);
+  flex-shrink: 0;
+}
+
+.pwa-fab-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 96px;
+  opacity: 1;
+  margin-left: 6px;
+  transition:
+    max-width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease,
+    margin-left 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pwa-install-fab.collapsed {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.pwa-install-fab.collapsed .pwa-fab-label {
+  max-width: 0;
+  opacity: 0;
+  margin-left: 0;
+}
+
+body.pwa-installable .room-topbar {
+  padding-left: 3.65rem;
+}
+
+@media (max-width: 640px) {
+  .pwa-install-fab {
+    top: 10px;
+    left: 10px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0 10px 0 8px;
+  }
+
+  .pwa-install-fab.collapsed {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+  }
+
+  body.pwa-installable .room-topbar {
+    padding-left: 3.35rem;
+  }
+}
+
+.pwa-install-banner {
+  width: 100%;
+  max-width: 100%;
+  background: var(--accent-emerald-soft);
+  border: 1.5px solid var(--accent-emerald);
+  border-radius: var(--radius-md);
+  padding: 0.72rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  box-shadow: 0 8px 20px var(--accent-emerald-glow);
+  animation: screenFadeIn 0.25s ease-out;
+}
+
+.pwa-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.pwa-banner-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+}
+
+.pwa-banner-texts {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pwa-banner-title {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pwa-banner-sub {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-pwa-install-action {
+  background: var(--accent-emerald);
+  color: var(--accent-emerald-contrast);
+  border: none;
+  border-radius: 999px;
+  padding: 0.48rem 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px var(--accent-emerald-glow);
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+
+.btn-pwa-install-action:hover {
+  filter: brightness(1.06);
+}
+
+.btn-pwa-install-action:active {
+  transform: scale(0.96);
+}
+
+.pwa-modal-card {
+  text-align: left;
+}
+
+.pwa-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.pwa-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1rem;
+}
+
+.pwa-modal-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.85rem;
+  line-height: 1.45;
+}
+
+.pwa-steps-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.pwa-step-item {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.pwa-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-emerald);
+  color: var(--accent-emerald-contrast);
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.pwa-step-text {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  line-height: 1.38;
+}
+
+.pwa-inline-pill {
+  display: inline-block;
+  padding: 0.08rem 0.38rem;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  font-weight: 700;
+}

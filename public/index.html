@@ -11,6 +11,7 @@
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -25,11 +26,31 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="./styles.css?v=0.10" />
+  <link rel="stylesheet" href="./styles.css?v=0.11" />
 </head>
 <body>
   <!-- ======================================================================
-       0. FIXED TOP-RIGHT THEME TOGGLE BUTTON (5s AUTO-COLLAPSE TO ICON)
+       0A. FIXED TOP-LEFT PWA INSTALL BUTTON (5s AUTO-COLLAPSE TO ICON)
+       ====================================================================== -->
+  <button
+    type="button"
+    id="btn-pwa-install-fab"
+    class="pwa-install-fab hidden"
+    aria-label="Instalar aplicativo Omnivox na tela inicial"
+    title="Instalar aplicativo Omnivox"
+  >
+    <span class="pwa-install-icon-wrap" aria-hidden="true">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12"></path>
+        <path d="m7 10 5 5 5-5"></path>
+        <path d="M5 21h14"></path>
+      </svg>
+    </span>
+    <span id="pwa-fab-label" class="pwa-fab-label">Instalar App</span>
+  </button>
+
+  <!-- ======================================================================
+       0B. FIXED TOP-RIGHT THEME TOGGLE BUTTON (5s AUTO-COLLAPSE TO ICON)
        ====================================================================== -->
   <button
     type="button"
@@ -79,7 +100,7 @@
       <div class="splash-progress-fill"></div>
     </div>
 
-    <div id="splash-version-badge" class="splash-version-badge">v0.10</div>
+    <div id="splash-version-badge" class="splash-version-badge">v0.11</div>
   </section>
 
   <!-- ======================================================================
@@ -93,11 +114,25 @@
       <header class="setup-header">
         <div class="setup-brand-pill">
           <span class="live-dot"></span>
-          <span>OMNIVOX v0.10 • NEURAL LIVE AUDIO</span>
+          <span>OMNIVOX v0.11 • NEURAL LIVE AUDIO</span>
         </div>
         <h1 id="setup-main-title">Criar Nova Sala</h1>
         <p id="setup-subtitle">Escolha seu idioma, adicione sua foto e gere o QR Code para os participantes.</p>
       </header>
+
+      <!-- ALWAYS-AVAILABLE PWA INSTALL BANNER (Shown whenever running in browser mode) -->
+      <div id="pwa-install-banner" class="pwa-install-banner hidden" role="region" aria-label="Instalar aplicativo Omnivox">
+        <div class="pwa-banner-info">
+          <img src="./icon-192.png" alt="Ícone Omnivox" class="pwa-banner-icon" width="40" height="40" />
+          <div class="pwa-banner-texts">
+            <strong class="pwa-banner-title">Instalar Omnivox no Celular</strong>
+            <span id="pwa-banner-subtitle" class="pwa-banner-sub">Acesso em tela cheia com 1 toque na tela inicial</span>
+          </div>
+        </div>
+        <button type="button" id="btn-pwa-install-banner" class="btn-pwa-install-action">
+          <span>📲 Instalar</span>
+        </button>
+      </div>
 
       <form id="form-setup-room" class="setup-card">
         <!-- AVATAR CAPTURE (SELFIE CAMERA OR PHOTO UPLOAD) -->
@@ -399,6 +434,65 @@
     </div>
   </div>
 
-  <script src="./app.js?v=0.10"></script>
+  <!-- ======================================================================
+       MODAL 3: GUIDED PWA INSTALL INSTRUCTIONS (iOS Safari / Manual Fallback)
+       ====================================================================== -->
+  <div id="pwa-install-modal" class="qr-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pwa-modal-title">
+    <div class="qr-modal-card pwa-modal-card">
+      <div class="pwa-modal-header">
+        <div class="pwa-modal-title-row">
+          <img src="./icon-192.png" alt="Omnivox" width="36" height="36" class="pwa-banner-icon" />
+          <strong id="pwa-modal-title">Instalar App Omnivox</strong>
+        </div>
+        <button type="button" id="btn-close-pwa-modal" class="btn-chip" style="padding: 0.3rem 0.65rem;">Fechar ✕</button>
+      </div>
+
+      <p id="pwa-modal-desc" class="pwa-modal-desc">
+        Adicione o Omnivox à tela inicial do seu celular para abrir em tela cheia como aplicativo nativo:
+      </p>
+
+      <div id="pwa-steps-ios" class="pwa-steps-box hidden">
+        <div class="pwa-step-item">
+          <span class="pwa-step-num">1</span>
+          <div class="pwa-step-text">
+            Toque no botão <strong>Compartilhar</strong> <span class="pwa-inline-pill">📤</span> na barra do Safari.
+          </div>
+        </div>
+        <div class="pwa-step-item">
+          <span class="pwa-step-num">2</span>
+          <div class="pwa-step-text">
+            Role para baixo e escolha <strong>"Adicionar à Tela de Início"</strong> <span class="pwa-inline-pill">➕</span>.
+          </div>
+        </div>
+        <div class="pwa-step-item">
+          <span class="pwa-step-num">3</span>
+          <div class="pwa-step-text">
+            Toque em <strong>Adicionar</strong> no canto superior direito.
+          </div>
+        </div>
+      </div>
+
+      <div id="pwa-steps-android" class="pwa-steps-box">
+        <div class="pwa-step-item">
+          <span class="pwa-step-num">1</span>
+          <div class="pwa-step-text">
+            Toque no menu do navegador <span class="pwa-inline-pill">⋮</span> (canto superior ou inferior).
+          </div>
+        </div>
+        <div class="pwa-step-item">
+          <span class="pwa-step-num">2</span>
+          <div class="pwa-step-text">
+            Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.
+          </div>
+        </div>
+      </div>
+
+      <button type="button" id="btn-ok-pwa-modal" class="btn-create-room" style="padding: 0.72rem 1rem; font-size: 0.9rem; margin-top: 0.85rem;">
+        Entendi, vou instalar
+      </button>
+    </div>
+  </div>
+
+  <script src="./app.js?v=0.11"></script>
 </body>
 </html>
